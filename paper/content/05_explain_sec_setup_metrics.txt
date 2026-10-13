@@ -1,0 +1,174 @@
+@section Explainability and Reliability Assessment Layer
+
+@sub Explainable Recovery Decisions
+
+Automatic recovery changes where and when jobs run, so operators must be able to reconstruct why it acted. RMC-Spark makes explanation a first-class output rather than a by-product. Every state transition, submission, retry, failover, keep decision and job outcome is appended to a JSON decision log. A transition record contains the cluster, the old and new state, the detector that caused it, the health score, and the contribution w_i a_{i,k} of every signal. A failover record contains the source and target clusters, the stall duration, and the placement cost of every candidate cluster. Fig. {fig:explain} shows how these records are produced and consumed.
+
+@figure explain | Fig 17 Explainable Reliability Framework | Explainable reliability framework. Additive health and placement models yield per-factor contributions that are stored with every decision and aggregated into the reliability score R.
+
+Because both the health model and the placement cost are weighted sums, their explanations are exact: the contributions add up to the reported score, and no surrogate model is needed. This contrasts with post-hoc explanation of learned detectors and with root cause localisation methods that rank candidate causes statistically [@ma2021servicerank, @fu2025intelligent]. Work on explaining cascading failures in microservices from logs shows the value of such explanations for choosing countermeasures [@soldani2024explaining]; in RMC-Spark, the explanation of a failover directly states which signal made the controller act.
+
+@sub Root-Cause Analysis
+
+The decision log supports a simple form of root-cause analysis. For a failed run, the analyst starts from the job's outcome record, follows the failover and transition records backwards, and reads the dominant contribution of the transition that preceded the action. For example, an outage of a whole cluster shows the unreachable and workers-lost signals at 0.45 and 0.25, whereas a stalled job on a reachable cluster shows the stall signal as the main contributor. Combined with the stage events of the job, the analyst can also see how much work was redone. This is not a replacement for infrastructure-level root-cause analysis, which would need host and network telemetry, but it answers the question that matters to the data science team: why did my job move, and what did it cost?
+
+@sub Reliability Scoring
+
+Each cluster accumulates reliability statistics while the controller runs: uptime and downtime from its state transitions, the durations of completed outages, the number of jobs that succeeded or failed on it, and the average health score. These are combined into a reliability score:
+
+@equation reliability
+
+where s_{j,k} are four normalised indicators for cluster k and w_j their weights. Table {tab:indicators} defines the indicators. The MTTR indicator is normalised by a reference of 120 s, beyond which recovery is considered fully poor. The score and its contributions are exported to Prometheus and served by the controller's API, so the dashboard shows not only that a cluster's reliability fell but which indicator caused the fall. Service-oriented reliability models for public clouds [@meng2022service] and analytical availability models [@maciel2021survey] are richer than this score; its purpose here is operational transparency rather than prediction.
+
+@table indicators | Reliability assessment indicators | wide | 18,42,12,28
+| Indicator | Definition | Weight | Interpretation |
+| Availability | Uptime / (uptime + downtime) from state transitions | 0.4 | Share of time the cluster was usable |
+| Recovery | 1 − min(1, MTTR / 120 s) | 0.2 | Speed of returning to service |
+| Success | Successful attempts / all finished attempts on the cluster | 0.2 | Whether work placed there completes |
+| Health | Mean health score H over all polls | 0.2 | Persistent degradation, including gray failures |
+| MTBF estimate | (M_0 n_0 + uptime) / (n_0 + failures), Eq. ({eq:mtbf}) | — | Input to the checkpoint policy, not part of R |
+
+@sub Worked Example
+
+Consider a cluster outage of cluster A while a job runs on it. The first poll after the fault finds the master unreachable; the unreachable signal is one and, because no workers are reported, the workers-lost signal is also one, so their contributions are 0.45 and 0.25 and the health score is 0.30. The state machine marks A as SUSPECT and, after two more polls with the same score, as FAILED, logging the transition with the reason H = 0.30 (unreachable = 0.45, workers_lost = 0.25). Ten seconds later, the driver still reports no new completed tasks, so the controller logs a failover from A to B with the reason that A is FAILED with no progress for ten seconds, followed by the placement scores of the candidates; with A excluded and B idle and healthy, J_B is zero. The next record is the submission of attempt one on B. An operator reading these four records can reconstruct the incident without access to the controller's internals.
+
+@sub Limits of Additive Explanations
+
+Additive models explain exactly what they compute, but they cannot explain what they do not observe. If a failure has a cause outside the five signals, such as a corrupted input file that makes every attempt fail, the explanation will show the symptom, repeated driver exits, rather than the cause. The weights also encode judgements about severity that were made by the designers rather than learned from incident data. These limits are acceptable for the purpose of making recovery actions auditable, but they mean that the reliability score should be read as a summary of observed behaviour, not as a calibrated probability of failure.
+
+@sub Operational Transparency
+
+Transparency extends to configuration. All thresholds, weights and timeouts used by the controller are in one configuration file and are reproduced in Tables {tab:monitoring} and {tab:indicators}, so that a reader can recompute any decision from the logged signals. The controller exposes a REST interface that lists clusters with their current state, health, top causes and reliability components, lists jobs with their attempts, and returns the most recent decisions. A command-line client wraps this interface for demonstrations. Studies of AIOps practice repeatedly identify trust and interpretability as preconditions for automation in operations [@li2020predicting, @notaro2021survey, @diazdearcaya2023joint]; exact explanations are the design response to that finding.
+
+@section Security, Governance, and Compliance Layer
+
+@sub Security Controls
+
+A resilience layer that can stop and start jobs and move them between clusters is itself a privileged component, so its security matters. Fig. {fig:security} shows the security and governance architecture. The controller holds three kinds of privilege: access to object storage, the ability to submit applications to every Spark master, and, in the testbed, access to the Docker Engine for fault injection. In production, the fault-injection privilege would be removed entirely, and the remaining privileges would be scoped with service accounts and least-privilege storage policies. Big data security frameworks recommend combining access control, encryption and integrity protection for data at rest and in transit [@alhazmi2022big, @lu2022survey].
+
+@figure security | Fig 18 Security and Governance Architecture | Security and governance architecture. Implemented controls (solid) and production controls designed but not enabled in the testbed (dashed) are distinguished.
+
+The testbed favours reproducibility over hardening, and the paper states this explicitly rather than implying production security. Implemented controls are isolation of all services on a private container network, credentials for object storage, an append-only decision log of all automatic actions, and per-job identifiers that separate checkpoint namespaces. Designed but not enabled controls are Spark's shared-secret authentication between driver and executors, TLS for Spark, object storage and the controller API, bucket policies that restrict each job to its own prefixes, non-root containers, and secret management instead of configuration files. Table {tab:governance} lists the controls with their status.
+
+@sub Threat Model
+
+Three threats are specific to a cross-cluster resilience layer. An attacker who can submit jobs through the controller can consume resources on every cluster, so job submission must be authenticated and rate-limited. An attacker who can write to the checkpoint bucket can plant a commit marker and a forged stage output, which a later attempt would restore without recomputing; checkpoint prefixes must therefore be writable only by the job's own service identity, and markers could be signed. An attacker who can trigger failovers, for example by degrading the network of one cluster, could steer jobs to a cluster under their control; placement constraints and mutual authentication between drivers and executors mitigate this risk. Big data security surveys recommend encryption and access control at every layer for comparable reasons [@lu2022survey].
+
+@sub Access Management and Auditing
+
+Access to the controller's API determines who can submit jobs or inject faults, so in production it would sit behind the organisation's identity provider with role-based permissions: data scientists may submit jobs and read decisions; platform engineers may additionally pause clusters; chaos experiments would require a separate role and change approval. The decision log doubles as an audit trail, because every automatic action carries a timestamp, the affected job and cluster, and the reason. Chaos engineering for cloud security has shown that misconfigurations are best found by deliberate, controlled experiments [@torkura2020cloudstrike]; the same fault injector used for resilience could, with appropriate approval, test security assumptions.
+
+@sub Disaster Recovery Policies
+
+From a disaster recovery perspective, RMC-Spark defines two objectives per job. The recovery time objective is bounded by detection time, the stall threshold and the time to start a new driver, as quantified in Section XVII. The recovery point objective, measured in work rather than data, is the uncheckpointed work at the time of failure, bounded by τ* plus one stage. Both depend on the object store surviving, so in production the store must be replicated across failure domains; the single MinIO instance of the testbed is a single point of failure, as discussed in Section XX.
+
+@sub Governance Monitoring and Compliance
+
+Data governance asks who may use which data for which purpose, and how this is demonstrated [@janssen2020data]. Cross-cluster recovery introduces a governance question of its own: moving a job to another cluster may move personal data to another jurisdiction. The placement cost of Section X can encode such constraints by assigning an infinite transfer cost to clusters where a job's data may not be processed, and automated governance pipelines can supply these constraints from data catalogues [@nadal2022operationalizing]. Compliance evidence comes from the decision log, which shows where each attempt ran, and from the commit markers, which show which attempt produced each stage output.
+
+@table governance | Governance and compliance controls | wide | 30,40,30
+| Control | Purpose | Status in testbed |
+| Private container network | Isolate cluster traffic | Implemented |
+| Object-storage credentials | Authenticate data access | Implemented (lab credentials) |
+| Append-only decision log | Audit automatic actions | Implemented |
+| Per-job checkpoint namespace | Separate job state, attribute outputs | Implemented |
+| Commit markers with attempt number | Provenance of stage outputs | Implemented |
+| Spark shared-secret authentication | Prevent rogue executors and drivers | Designed, not enabled |
+| TLS for Spark, storage and API | Protect data in transit | Designed, not enabled |
+| Least-privilege bucket policies | Restrict jobs to their prefixes | Designed, not enabled |
+| Role-based API access | Separate submit, operate and chaos roles | Designed, not enabled |
+| Non-root containers, secret store | Reduce attack surface | Designed, not enabled |
+| Jurisdiction-aware placement | Keep data in permitted clusters | Designed (via transfer cost) |
+
+@section Experimental Setup
+
+@sub Testbed Infrastructure
+
+All experiments run on a single workstation with 12 logical processors and 16 GB of memory under Windows 11, using Docker Engine 28.3 with the WSL2 back-end limited to 12 GB of memory. Fig. {fig:testbed} shows the testbed. Each Spark cluster has a master limited to 768 MB of memory and two workers limited to 1.75 GB, each offering two cores and 1280 MB to executors, with a 1 GB in-memory file system for Spark's local directories. The controller container is limited to 2.5 GB because it hosts the drivers. MinIO, Prometheus and Grafana run with 512 MB, 384 MB and 256 MB. All Spark containers use one image based on the official Apache Spark 3.5.3 image with Java 17 and Python 3.10, extended with the Hadoop AWS 3.3.4 connector. The network is a single Docker bridge network; network faults are emulated inside it.
+
+@figure testbed | Fig 19 Experimental Testbed Architecture | Experimental testbed: two Spark clusters, shared MinIO storage, monitoring, the controller hosting the drivers and the experiment runner, and the fault injector acting through the Docker Engine API.
+
+Running all clusters on one host is a deliberate trade-off. It removes cloud variability and makes every fault precisely repeatable, which benchmarking studies of fault recovery identify as essential [@vogel2024comprehensive], but it also means that absolute timings are specific to this machine and that the clusters share CPU, memory and disk. Results are therefore reported relative to baselines measured on the same testbed.
+
+@sub Workloads and Datasets
+
+Four workloads cover the main analytics patterns. W1 is the batch ETL pipeline of Section VI over four million synthetic trips (four resilient stages, several shuffles). W2 is a machine learning pipeline that assembles features from a 25 per cent sample of the trips and trains a gradient-boosted tree regressor with 15 iterations and depth 5 to predict the fare; its training stage is long and is checkpointed as a model. W3 is an iterative PageRank with 12 iterations over a skewed graph of two million edges, implemented as a linear chain of resilient stages, which produces the long lineage that motivates adaptive checkpointing. W4 is a Structured Streaming job that reads a rate source at 20 000 rows per second, aggregates over 10 s windows with a watermark, writes to Parquet with its checkpoint in object storage, and ends after 120 micro-batches with a 2 s trigger. Two case-study workloads apply W2's pipeline to the AI4I 2020 predictive maintenance dataset and to the ULB credit-card fraud dataset for the industrial evaluation of Section XVIII. Performance studies of Spark use comparable mixes of SQL, machine learning and graph workloads [@ahmed2020comprehensive].
+
+@sub Fault Injection
+
+Faults are injected by a script in the spirit of chaos engineering [@basiri2016chaos], acting on containers through the Docker Engine API [@simonsson2021observability]. Nine fault types are available: executor kill (SIGKILL of executor processes on one worker), worker kill, master kill, cluster outage (master and both workers killed), network partition (all containers of the cluster disconnected from the network), network delay (300 ms with 50 ms jitter added with netem), straggler (one worker throttled to a quarter of a CPU), disk full (the local directory file system filled) and driver crash. Partition, delay, straggler and disk-full faults are transient and are reverted after 60 s; the others persist until the end of the run. Every run starts on cluster A, and the fault hits the job's current cluster at a fixed time after submission, chosen as roughly 40 per cent of the workload's clean runtime. After each run all clusters are restored and the runner waits until both are healthy.
+
+@sub Compared Configurations
+
+Five configurations are compared. B1 (vanilla) uses Spark's built-in fault tolerance only, without checkpoints or failover. B2 (fixed checkpoint) checkpoints after every stage but does not fail over. B3 (naive HA) uses an active and passive pair: a job is restarted from scratch on the other cluster after its master has been unreachable for 30 s. A1 (ablation) is RMC-Spark with checkpoints after every stage instead of the adaptive policy. P is the full RMC-Spark with the adaptive policy. A1 and P also enable Spark's speculative execution; this difference is part of the proposed configuration and is reported as such. Table {tab:config} lists the configuration details.
+
+@table config | Experimental configuration details | wide | 30,70
+| Item | Setting |
+| Host | 12 logical CPUs, 16 GB RAM, Windows 11, Docker 28.3 (WSL2, 12 GB) |
+| Spark | 3.5.3 standalone, Java 17, Python 3.10, Hadoop AWS 3.3.4 |
+| Clusters | 2 (A, B); per cluster 1 master + 2 workers, 2 cores and 1280 MB per worker |
+| Per job | Driver 512 MB in controller (client mode); executors 1 core / 576 MB; 4 cores |
+| Spark settings | task.maxFailures 4; network.timeout 60 s; heartbeat 10 s; 16 shuffle partitions; AQE on |
+| Storage | MinIO (S3A, path-style), buckets data / checkpoints / results |
+| Monitoring | Controller poll 2 s; Prometheus scrape 5 s; Grafana dashboard |
+| Workloads | W1 ETL, W2 GBT pipeline, W3 PageRank (12 iterations), W4 streaming (120 batches) |
+| Faults | none, executor kill, worker kill, master kill, cluster outage, partition, delay, straggler |
+| Configurations | B1 vanilla, B2 fixed checkpoint, B3 naive HA, A1 ablation, P RMC-Spark |
+| Repetitions | 3 per cell, runs shuffled within each repetition (seed 2026) |
+| Matrix size | 5 × 4 × 8 × 3 = 480 runs |
+| Deadlines | 900 s (W1, W4), 1200 s (W2, W3) |
+
+@sub Experimental Procedure
+
+The experiment runner reads the matrix from a configuration file, shuffles the cells within each repetition to avoid systematic drift in favour of any configuration, and records every run in a CSV file together with the decision log, the cluster time series and the stage events of every job. A run that crashes the runner itself is recorded as a runner error and excluded from analysis rather than silently dropped. The analysis scripts compute all metrics of Section XIV from these raw files, so every number in the result tables can be traced to a run.
+
+@section Evaluation Metrics
+
+@sub Evaluation Framework
+
+Fig. {fig:evalframework} shows how raw observations are turned into metrics. Job-level metrics come from the run records, recovery metrics from the decision log, work metrics from the stage events, and resource metrics from the cluster time series. Table {tab:metrics} defines each metric.
+
+@figure evalframework | Fig 20 Evaluation Framework | Evaluation framework: raw observations (runs, decisions, stage events, time series) are transformed into job, recovery, work and resource metrics and compared with non-parametric statistics.
+
+@sub Availability and Recovery Metrics
+
+Steady-state availability is defined classically as
+
+@equation availability
+
+where MTBF and MTTR are the mean time between failures and the mean time to repair. At the level of an individual run, availability is computed as one minus the ratio of downtime to run duration. The recovery time of a run is
+
+@equation trec
+
+where t_fault is the injection time and t_resume the time at which the job is again executing productively, approximated by the submission of the recovering attempt; detection latency is measured separately as the time from t_fault to the FAILED transition. For streaming jobs, recovery time follows the throughput criterion of Vogel et al.: the time from the fault until the processed rate returns to at least 85 per cent of its pre-fault mean and stays there for 40 s [@vogel2024comprehensive]. Reliability metrics for stream processors, such as failure cost and reliable throughput, motivated the separation of these measures [@tahir2024how].
+
+@sub Efficiency Metrics
+
+The fault-free overhead of a configuration measures what resilience costs when nothing fails:
+
+@equation overhead
+
+where T_clean^sys is the median completion time of fault-free runs of the configuration and T_clean^B1 that of the vanilla baseline for the same workload. Recomputed work is the compute time of stages that a later attempt executed again although an earlier attempt had completed them, and checkpoint cost is the total time spent writing checkpoints. Resource utilisation follows Eq. ({eq:utilisation}).
+
+@table metrics | Metrics definition matrix | wide | 22,46,16,16
+| Metric | Definition | Source | Better |
+| Success rate | Share of runs completed before the deadline | Run records | Higher |
+| Completion time | Submission to end of job | Run records | Lower |
+| Fault-induced delay | Completion time minus median clean completion time | Run records | Lower |
+| Downtime | Failed run: end − fault; succeeded run: max(0, delay) | Derived | Lower |
+| Run availability | 1 − downtime / duration | Derived | Higher |
+| Detection latency | Fault to FAILED transition of the relevant detector | Decision log | Lower |
+| Recovery time, Eq. ({eq:trec}) | Fault to submission of the recovering attempt | Decision log | Lower |
+| Streaming recovery | Fault to throughput ≥ 85 % of baseline for 40 s | Batch events | Lower |
+| Recomputed work | Compute time of repeated stages | Stage events | Lower |
+| Checkpoint cost | Total checkpoint write time and count | Stage events | Lower |
+| Overhead, Eq. ({eq:overhead}) | Relative clean-run slowdown versus B1 | Run records | Lower |
+| Utilisation, Eq. ({eq:utilisation}) | Used / offered core-seconds | Time series | Context |
+
+@sub Metric Validity
+
+Each metric has a known limitation. Recovery time measured as the time to resubmission ignores the start-up time of the new driver, which is therefore reported separately in Section XVII. Downtime for successful runs is approximated by the fault-induced delay, which also includes slowdowns unrelated to downtime, such as speculative copies competing for cores. Run availability depends on the run length, so it is compared only between configurations on the same workload. These approximations are applied identically to all configurations, so they do not bias the comparison, but they should be kept in mind when interpreting absolute values.
+
+@sub Statistical Analysis
+
+Runs are independent, so configurations are compared with the two-sided Mann-Whitney U test rather than a paired test. Effect sizes are reported as Cliff's delta with the usual magnitude labels (negligible below 0.147, small below 0.33, medium below 0.474, large otherwise), and means are reported with 95 per cent bootstrap confidence intervals from 5000 resamples. With three repetitions per cell, individual cells have little statistical power; comparisons are therefore made over all fault types of a configuration, and per-fault results are reported descriptively. Service-level objectives for availability are typically expressed as percentiles over time windows [@nastic2020sloc], and availability models for cloud systems use MTBF and MTTR as their central parameters [@maciel2021survey], which is why these quantities are reported in the forms above.

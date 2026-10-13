@@ -1,0 +1,25 @@
+# Main experiment matrix (Section 13 / Table 9). 5 x 4 x 8 x 3 = 480 runs.
+# fault_at_s should be ~40% of each workload's clean runtime on YOUR machine:
+# measure it first with smoke.yaml / a few clean runs and edit the values below.
+name: full
+output_dir: results/raw/full
+repetitions: 3
+seed: 2026
+transient_duration_s: 60
+cooldown_s: 10
+
+systems:
+  B1_vanilla:      {mode: none,  policy: never}                 # Spark defaults only
+  B2_fixed_ckpt:   {mode: none,  policy: always}                # checkpoint every stage
+  B3_naive_ha:     {mode: naive, policy: never}                 # active/passive, timeout detector
+  A1_rmc_no_adapt: {mode: smart, policy: always,   conf: {spark.speculation: "true"}}   # ablation
+  P_rmc:           {mode: smart, policy: adaptive, conf: {spark.speculation: "true"}}   # proposed
+
+workloads:
+  etl_taxi:       {deadline_s: 900,  fault_at_s: 45,  expected_runtime_s: 120}
+  ml_taxi:        {deadline_s: 1200, fault_at_s: 80,  expected_runtime_s: 200}
+  iterative_rank: {deadline_s: 1200, fault_at_s: 90,  expected_runtime_s: 240}
+  streaming:      {deadline_s: 900,  fault_at_s: 90,  expected_runtime_s: 260}
+
+faults: [none, executor_kill, worker_kill, master_kill, cluster_outage, network_partition,
+         network_delay, straggler]

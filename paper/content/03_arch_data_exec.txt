@@ -1,0 +1,116 @@
+@section Multi-Cluster Spark Analytics Architecture
+
+@sub Design Principles
+
+RMC-Spark is built on four design principles. The first is to keep the analytics engine unmodified. Every cluster runs stock Apache Spark in standalone mode, so the approach applies to existing deployments and benefits from upstream improvements. The second is to separate jobs from clusters: a job is identified by a stable job identifier, its durable state lives in shared object storage, and the cluster on which an attempt runs is an interchangeable resource. The third is to act on evidence of harm rather than on suspicion. A cluster that looks unhealthy is avoided for new work, but a running job is moved only when it has stopped making progress. The fourth is to explain every action, because automatic recovery that operators cannot audit is unlikely to be trusted in production [@li2020predicting, @notaro2021survey].
+
+@sub Overall Architecture
+
+Fig. {fig:architecture} shows the architecture as deployed in the testbed. Two Spark clusters, A and B, each consist of one master and two workers. A shared MinIO object store, accessed through the Hadoop S3A connector, holds input data, stage checkpoints, streaming checkpoints and results. Prometheus scrapes metrics from the Spark masters, the workers and the controller, and Grafana visualises them. The resilience controller runs in its own container and hosts the Spark drivers: every job is launched with spark-submit in client deploy mode from the controller, so the driver process lives outside the cluster whose executors it uses. A fault injector controls the containers of each cluster through the Docker Engine API.
+
+@figure architecture | Fig 06 Resilient Multi-Cluster Spark Architecture | Resilient multi-cluster Spark architecture for fault-tolerant distributed analytics (core figure). Drivers run in the controller, executors run on cluster A or B, and all durable state lives in shared object storage, so a job can resume on either cluster. | wide
+
+Placing drivers in the controller is the key structural decision. In Spark's cluster deploy mode, the driver runs on a worker of the same cluster and is lost together with it; in client mode, the driver survives the loss of the cluster and can be stopped deliberately and restarted against another master. The controller can then observe both sides of a failure: the master's view of the cluster and the driver's view of task progress. This dual observation is what allows the system to distinguish a dead master with healthy executors from a dead cluster, a distinction that matters for gray failures [@huang2017gray].
+
+@sub Components and Interactions
+
+The controller executes a control loop every two seconds. In each iteration it probes the JSON endpoint of every Spark master, queries the REST API of every running driver, computes a health score per cluster (C1), updates a failure detector state machine per cluster, applies the recovery rules to every job (C3), and, when a job must start or move, selects a cluster with the placement cost (C4). Every state transition and recovery action is appended to a decision log with the contributions of each health signal (C5). The data science programs use the rds library, which implements resumable stages and the adaptive checkpoint policy (C2). The policy needs an estimate of the mean time between failures, which the controller maintains from the observed cluster failures and passes to each job attempt as an argument.
+
+The interaction during a cluster outage proceeds as follows. When cluster A fails, the probes of its master time out and its health score drops; after three consecutive low scores the state machine declares A failed. The driver of a job running on A reports no completed tasks any more, so after a short stall threshold the controller terminates the driver, selects cluster B, and launches a new attempt with the same job identifier against B's master. The new attempt finds the commit markers of stages finished by the first attempt in object storage, restores those stages, and computes only the remaining ones.
+
+@sub Layered Analytics Stack
+
+Fig. {fig:stack} presents the same system as a layered stack, which also structures Sections VI to XII. The storage layer provides durable, shared object storage. The processing layer contains the Spark clusters. The resilience programming layer consists of the rds library inside each driver. The control layer contains monitoring, detection, recovery and orchestration. The explainability layer turns control decisions into auditable records and reliability scores, and the governance layer spans all of them with security controls and policies. Monitoring and observability cut across the stack, following current practice for container-based systems [@usman2022survey, @li2021enjoy].
+
+@figure stack | Fig 07 Layered Analytics Stack | Layered analytics stack of RMC-Spark. Observability and governance span all layers; each layer is detailed in one of Sections VI to XII.
+
+@sub Failure Domains and Assumptions
+
+The architecture distinguishes three failure domains. A cluster domain contains a master and its workers; the design tolerates the loss of any number of cluster domains as long as one remains. The storage domain contains the object store; the design assumes it is available, which in production means a replicated service. The control domain contains the controller and the drivers; the design assumes that the controller is available while it is making decisions, and in production this is achieved with replicas. Faults are assumed to be fail-stop or fail-slow; Byzantine behaviour, such as a cluster returning wrong results, is out of scope. Stage functions are assumed to be deterministic, which is the same assumption that lineage-based recovery in Spark relies on [@zaharia2012rdd].
+
+@sub Deployment Model
+
+The testbed deploys all components with Docker Compose on a single host, which makes the experiments reproducible and lets faults be injected precisely. The architecture does not depend on this choice. In production, clusters A and B would be separate Spark deployments in different availability zones or clouds, the object store would be a replicated cloud object store, and the controller would run with redundant replicas. Multi-cloud orchestration frameworks and geo-distributed analytics systems already address data placement and transfer across such deployments [@tomarchio2020cloud, @bergui2021survey]; the placement cost of Section X includes a data-transfer term for this reason, although it is zero in the testbed where all data are shared.
+
+@section Distributed Data Engineering Layer
+
+@sub Ingestion and Storage Organisation
+
+The data engineering layer stores all durable data in an S3-compatible object store organised into three buckets: data for inputs, checkpoints for stage and streaming checkpoints, and results for job outputs. Object storage decouples data from compute in the same way as data lakes and lakehouses do in production platforms [@sawadogo2020data, @hai2023data, @harby2024data, @errami2023spatial], and it is the precondition for cross-cluster recovery: any cluster can read any committed stage. Fig. {fig:pipeline} shows the data engineering pipeline used by the workloads.
+
+@figure pipeline | Fig 08 Distributed Data Engineering Pipeline | Distributed data engineering pipeline. Raw data are ingested into the data bucket, transformed by resilient stages whose committed outputs are written to the checkpoint bucket, and published to the results bucket.
+
+Ingestion has two paths. A deterministic generator produces a synthetic taxi-trip dataset of four million records, including about one per cent of deliberately invalid rows for the cleaning stage, and a skewed directed graph of two million edges for the iterative workload. The generator is seeded, so every team member and reviewer obtains identical data. Public datasets can be added through a download script and an ingestion job: monthly NYC taxi trip records, the AI4I 2020 predictive maintenance dataset and the ULB credit-card fraud dataset. The normalisation function maps the real taxi schema onto the synthetic one, so the same pipeline runs on both.
+
+@sub Transformation with Resilient Stages
+
+Transformations are written as ordinary PySpark functions decorated as stages of a ResilientPipeline. The batch ETL workload, for example, consists of a cleaning stage that removes trips with implausible duration, distance, fare or speed; an enrichment stage that joins pick-up and drop-off zones with a borough lookup; an hourly aggregation stage that computes trip counts, average and 95th-percentile fares, speeds and tip rates; and a ranking stage that selects the top revenue zones per borough with a window function. Each stage is a pure function of its inputs, which is the property that makes re-execution and restoration equivalent.
+
+Every stage follows the same protocol. If the stage has a commit marker from an earlier attempt, its output is read back from the checkpoint bucket and the function is not executed. Otherwise the function runs, its result is persisted in memory and disk and materialised with a count so that the measured compute time is real, and the checkpoint policy decides whether to write the result to object storage. When a checkpoint is written, the data are written first and a small JSON commit marker second. Because a stage counts as committed only when the marker exists, output left half-written by a crashed attempt is never read, and a re-run simply overwrites it. Reading the committed data back also truncates the lineage, so downstream failures no longer require recomputing upstream stages.
+
+@sub Streaming Data Path
+
+The streaming workload follows a different path because its unit of progress is a micro-batch, not a stage. Structured Streaming already records offsets and operator state in a checkpoint location after each micro-batch [@armbrust2018structured]; RMC-Spark places this location in the checkpoint bucket, so it is visible to every cluster. When a streaming job is resubmitted on another cluster with the same job identifier, the query restarts from the last committed batch and continues to write to the same output location. The job's driver writes one event per micro-batch with the number of input rows, the processing rate and the batch duration, which the analysis uses to measure throughput recovery.
+
+@sub Metadata Management and Schema Evolution
+
+Each commit marker records the stage name, its sequence number in the pipeline, the job identifier, the attempt number and a timestamp. These markers are the metadata catalogue of the resilience layer: from them the library reconstructs, at the start of every attempt, which stages are already committed. For strictly linear pipelines, such as the iterations of an iterative algorithm, the library uses the sequence numbers to skip all stages before the latest committed one, instead of recomputing stages whose results are already implied by a later checkpoint. Stage events with timings are written to a per-job event log, which the analysis uses to compute recomputed work and checkpoint cost.
+
+Schema evolution is handled conservatively. Stage outputs are stored in Parquet, which embeds its schema, so a restored stage carries the schema with which it was written. Because the stage identity includes the job identifier, a change of pipeline code is expected to use a new job identifier, which prevents an old checkpoint from being combined with new code. General approaches to schema evolution in NoSQL and relational systems [@chillon2024generic] and to automated data governance [@nadal2022operationalizing] could extend this policy, for example by recording a code version in the marker.
+
+@sub Partitioning and Storage Management
+
+Partitioning follows Spark's defaults with an explicit shuffle partition count of 16 and adaptive query execution enabled, which coalesces small partitions at run time. Input data are generated in 16 partitions, matching the four executor cores available per job and leaving room for load balancing. Checkpoint data are retained per job identifier, so storage grows with the number of jobs and can be reclaimed by a retention policy once a job has succeeded. Table {tab:dataeng} summarises the components and their responsibilities. Data pipeline studies report that unreliable intermediate data and missing validation are common root causes of pipeline failures [@foidl2023data, @taleb2021big]; the commit protocol addresses the reliability part of that problem, while data validation remains the responsibility of the pipeline code.
+
+@table dataeng | Data engineering components and responsibilities | normal | 28,72
+| Component | Responsibility |
+| Data bucket | Immutable inputs (synthetic and public datasets) |
+| Checkpoint bucket | Committed stage outputs, commit markers, streaming offsets and state |
+| Results bucket | Final outputs and JSON job summaries |
+| Data generator | Seeded synthetic trips and skewed graph |
+| Ingestion job | Copies downloaded public datasets into the data bucket |
+| ResilientPipeline | Stage restore, materialisation, policy decision, atomic commit |
+| Commit marker | Stage metadata: name, sequence, job, attempt, time |
+| Event log | Per-stage timings and checkpoint decisions for analysis |
+
+@sub Data Quality in Resilient Pipelines
+
+Resumption interacts with data quality in two ways. Positively, it prevents a class of quality incidents in which a rerun after a failure reads incomplete intermediate files and silently produces wrong aggregates; the commit protocol rules this out. Negatively, it makes stale intermediate results possible if the input data change between attempts, because a restored stage reflects the inputs that existed when it was computed. RMC-Spark treats inputs as immutable for the duration of a job, which matches the batch workloads of this study; pipelines with mutable inputs would need to include an input version in the job identifier or in the commit marker, in line with the governance practices discussed in Section XII.
+
+@section Spark Processing and Execution Layer
+
+@sub Spark Execution Model
+
+Each cluster runs Spark 3.5.3 in standalone mode. A standalone cluster consists of a master, which tracks workers and allocates resources to applications, and workers, which launch executor processes on behalf of applications. Fig. {fig:execution} shows the execution architecture. A Spark application starts with a driver, which builds the logical plan of the program, optimises it, splits it into jobs and stages, and schedules tasks on executors [@zaharia2016apache, @armbrust2015spark]. Executors run tasks, cache partitions and report status and heartbeats to the driver.
+
+@figure execution | Fig 09 Spark Execution Architecture | Spark execution architecture in RMC-Spark. The driver runs in the controller container in client mode; the master allocates executors on the workers of the selected cluster; executors read from and write to shared object storage.
+
+In RMC-Spark, the controller launches each driver with spark-submit in client mode, a driver memory of 512 MB, executors with one core and 576 MB of memory, and at most four executor cores per job. The driver advertises the controller's host name, so executors on either cluster can reach it, and its user interface port is assigned by the controller so that progress can be queried through Spark's REST API.
+
+@sub RDD Lineage and DAG Scheduling
+
+Spark represents a computation as a directed acyclic graph of RDDs connected by narrow and wide dependencies [@zaharia2012rdd]. Narrow dependencies, such as a filter or a map, allow a partition to be computed from a single parent partition and are pipelined within one stage. Wide dependencies, such as a group-by or a join with shuffle, require data from many parent partitions and form stage boundaries. The DAG scheduler submits stages in topological order, and the task scheduler assigns the tasks of each stage to executors, preferring locations that hold cached input. Fig. {fig:dag} shows the DAG of the ETL workload together with the stage boundaries introduced by the resilient pipeline.
+
+@figure dag | Fig 10 DAG Processing Workflow | DAG processing workflow of the ETL workload. Spark stages (shuffle boundaries) are shown inside the resilient pipeline stages; a committed pipeline stage cuts the lineage, so later failures never recompute earlier stages.
+
+Lineage determines the cost of recovery. When an executor is lost, the driver identifies the lost partitions and re-runs the minimal set of tasks needed to rebuild them, possibly going back through several shuffles if shuffle files were also lost. For pipelines with many wide dependencies this recomputation can be long, which is the long-lineage problem [@kweun2020lineage]. A committed resilient stage cuts the lineage at its boundary, because its consumers read from object storage instead of from the transformations that produced it. The checkpoint policy of Section IX decides where these cuts are worthwhile.
+
+@sub Task Execution and Built-in Fault Tolerance
+
+Spark's built-in mechanisms remain active in all configurations and form the first line of defence. A failed task is retried up to four times before its stage fails. Executors send heartbeats every 10 s, and an executor that is silent for the 60 s network timeout is declared lost, after which its tasks are rescheduled. Adaptive query execution adjusts the number of shuffle partitions at run time. In the proposed configuration, speculative execution is additionally enabled, so slow tasks are duplicated on other executors; this is the standard Spark answer to stragglers [@zaharia2008late]. Performance prediction and configuration tuning for Spark are active research areas [@herodotou2020survey, @cheng2020efficient], but RMC-Spark deliberately uses fixed, documented settings so that differences between configurations can be attributed to the resilience mechanisms rather than to tuning.
+
+@sub Resource Allocation and Utilisation
+
+Each worker offers two cores and 1280 MB of executor memory, so a cluster offers four cores and fits two executors per worker. The controller requests four executor cores per job, which equals one cluster's capacity and reflects a dedicated-cluster setting where one important job occupies its cluster. Resource utilisation is measured from the masters' reports of used and total cores, sampled at every control-loop iteration:
+
+@equation utilisation
+
+where c_used(t) and c_total(t) are the cores used and offered by the cluster at sample t, and Δt is the time to the next sample. Utilisation computed with Eq. ({eq:utilisation}) over a run shows both how fully a job uses its cluster and how much capacity is idle while a job waits for recovery. Surveys of the Spark ecosystem identify resource management and scheduling as central to Spark performance [@tang2020survey], and Fig. {fig:utilisation} in Section XV uses this measure to show the shift of load from the failed to the healthy cluster.
+
+@sub Interaction of Built-in and External Recovery
+
+Built-in and external recovery must not interfere. Two interactions were considered in the design. First, Spark may still be retrying tasks when the controller decides to migrate a job; because migration happens only after ten seconds without any completed task on a cluster that the controller already considers failed, Spark's own recovery has had the opportunity to make progress and has not. Second, the controller's stall signal could be triggered by a long but healthy task; this is why stall alone can make a cluster only SUSPECT, and why migration requires the cluster to be FAILED as well. The two mechanisms are therefore layered: Spark handles what it can inside the cluster, and the controller acts only when the evidence indicates that the cluster as a whole cannot continue.
+
+@sub Distributed Processing Flow
+
+Combining the elements above, a job in RMC-Spark follows a fixed flow. The controller places the job and launches attempt zero. The driver registers with the master, receives executors, and the rds library restores committed stages and computes the others, checkpointing according to the policy. The driver writes stage events, and the controller reads task progress from the driver. If the job finishes, the controller records success. If the driver exits with an error or the cluster fails while the job is stalled, the controller launches the next attempt, on the same or another cluster according to the rules of Section IX, and the flow repeats from the restore step.

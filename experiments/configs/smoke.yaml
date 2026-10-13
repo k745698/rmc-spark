@@ -1,0 +1,16 @@
+# Quick end-to-end check (~15-20 min): does failover work at all?
+name: smoke
+output_dir: results/raw/smoke
+repetitions: 1
+seed: 2026
+transient_duration_s: 60
+cooldown_s: 10
+
+systems:
+  B1_vanilla: {mode: none, policy: never}
+  P_rmc:      {mode: smart, policy: adaptive, conf: {spark.speculation: "true"}}
+
+workloads:
+  etl_taxi: {deadline_s: 600, fault_at_s: 45, expected_runtime_s: 120}
+
+faults: [none, cluster_outage]

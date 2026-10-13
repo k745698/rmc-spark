@@ -1,0 +1,165 @@
+# RMC-Spark testbed: two independent Spark standalone clusters (A, B), shared MinIO storage,
+# Prometheus + Grafana monitoring, and the resilience controller.
+# Memory limits add up to ~11.5 GB -> give Docker Desktop (WSL2) at least 12 GB (see README).
+
+x-spark-image: &spark-image
+  image: rmc-spark:latest
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+
+x-master: &master
+  <<: *spark-image
+  mem_limit: 768m
+  cap_add: [NET_ADMIN]
+  volumes: ["./:/workspace"]
+  networks: [rmc]
+
+x-worker: &worker
+  <<: *spark-image
+  mem_limit: 1750m
+  cap_add: [NET_ADMIN]
+  volumes: ["./:/workspace"]
+  networks: [rmc]
+  environment:
+    SPARK_LOCAL_DIRS: /tmp/spark-local
+  tmpfs:
+    - /tmp/spark-local:size=1g
+
+services:
+  # ------------------------------------------------------------------ cluster A
+  spark-master-a:
+    <<: *master
+    container_name: rmc-master-a
+    hostname: spark-master-a
+    labels: {rmc.cluster: "A", rmc.role: "master"}
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master",
+              "--host", "spark-master-a", "--port", "7077", "--webui-port", "8080"]
+    ports: ["8080:8080"]
+
+  spark-worker-a1:
+    <<: *worker
+    container_name: rmc-worker-a1
+    hostname: spark-worker-a1
+    labels: {rmc.cluster: "A", rmc.role: "worker"}
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker",
+              "--cores", "2", "--memory", "1280m", "--webui-port", "8081",
+              "spark://spark-master-a:7077"]
+    depends_on: [spark-master-a]
+
+  spark-worker-a2:
+    <<: *worker
+    container_name: rmc-worker-a2
+    hostname: spark-worker-a2
+    labels: {rmc.cluster: "A", rmc.role: "worker"}
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker",
+              "--cores", "2", "--memory", "1280m", "--webui-port", "8081",
+              "spark://spark-master-a:7077"]
+    depends_on: [spark-master-a]
+
+  # ------------------------------------------------------------------ cluster B
+  spark-master-b:
+    <<: *master
+    container_name: rmc-master-b
+    hostname: spark-master-b
+    labels: {rmc.cluster: "B", rmc.role: "master"}
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.master.Master",
+              "--host", "spark-master-b", "--port", "7077", "--webui-port", "8080"]
+    ports: ["8090:8080"]
+
+  spark-worker-b1:
+    <<: *worker
+    container_name: rmc-worker-b1
+    hostname: spark-worker-b1
+    labels: {rmc.cluster: "B", rmc.role: "worker"}
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker",
+              "--cores", "2", "--memory", "1280m", "--webui-port", "8081",
+              "spark://spark-master-b:7077"]
+    depends_on: [spark-master-b]
+
+  spark-worker-b2:
+    <<: *worker
+    container_name: rmc-worker-b2
+    hostname: spark-worker-b2
+    labels: {rmc.cluster: "B", rmc.role: "worker"}
+    command: ["/opt/spark/bin/spark-class", "org.apache.spark.deploy.worker.Worker",
+              "--cores", "2", "--memory", "1280m", "--webui-port", "8081",
+              "spark://spark-master-b:7077"]
+    depends_on: [spark-master-b]
+
+  # ------------------------------------------------------------------ shared storage
+  # minio/minio and minio/mc were removed from Docker Hub (and quay.io) in 2025; these are
+  # maintained rebuilds of the same upstream binaries.
+  minio:
+    image: cgr.dev/chainguard/minio:latest
+    user: "0"
+    container_name: rmc-minio
+    hostname: minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: rmcadmin
+      MINIO_ROOT_PASSWORD: rmcadmin123
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["minio-data:/data"]
+    mem_limit: 512m
+    networks: [rmc]
+
+  minio-init:
+    image: bitnamilegacy/minio-client:latest
+    user: "0"
+    container_name: rmc-minio-init
+    depends_on: [minio]
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set local http://minio:9000 rmcadmin rmcadmin123; do sleep 2; done
+        mc mb -p local/data local/checkpoints local/results
+        echo "buckets ready"
+    networks: [rmc]
+
+  # ------------------------------------------------------------------ monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rmc-prometheus
+    volumes: ["./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["9090:9090"]
+    mem_limit: 384m
+    networks: [rmc]
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rmc-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_SECURITY_ADMIN_PASSWORD: "rmcadmin"
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    mem_limit: 256m
+    networks: [rmc]
+
+  # ------------------------------------------------------------------ resilience controller
+  # Spark drivers run here (client mode), so a cluster outage never takes the driver with it.
+  controller:
+    <<: *spark-image
+    container_name: rmc-controller
+    hostname: controller
+    command: ["uvicorn", "controller.api:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      RMC_CONFIG: /workspace/configs/clusters.yaml
+    volumes:
+      - ./:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports: ["8000:8000", "4040-4049:4040-4049"]
+    mem_limit: 2560m
+    depends_on: [spark-master-a, spark-master-b, minio]
+    networks: [rmc]
+
+networks:
+  rmc:
+    name: rmc-net
+
+volumes:
+  minio-data:

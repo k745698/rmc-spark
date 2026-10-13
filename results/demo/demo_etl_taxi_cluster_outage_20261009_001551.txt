@@ -1,0 +1,541 @@
+[00:15:51] === status before ===
+[00:15:52] cluster A: HEALTHY  H=1.0 workers=2 R=0.91 causes=[]
+[00:15:53] cluster B: HEALTHY  H=1.0 workers=2 R=0.91 causes=[]
+[00:15:53] === submit etl_taxi (smart, adaptive) ===
+[00:15:54] {
+[00:15:54]   "job_id": "etl_taxi-dc33e181",
+[00:15:54]   "state": "RUNNING"
+[00:15:54] }
+[00:16:01] cluster A: HEALTHY  H=0.99 workers=2 R=0.91 causes=[['stall', 0.008]]
+[00:16:02] cluster B: HEALTHY  H=1.0 workers=2 R=0.91 causes=[]
+[00:16:02] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:16:12] cluster A: HEALTHY  H=0.98 workers=2 R=0.92 causes=[['stall', 0.021]]
+[00:16:13] cluster B: SUSPECT  H=0.9 workers=2 R=0.92 causes=[['latency', 0.1]]
+[00:16:13] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:16:22] cluster A: HEALTHY  H=0.97 workers=2 R=0.92 causes=[['stall', 0.033]]
+[00:16:22] cluster B: SUSPECT  H=0.9 workers=2 R=0.92 causes=[['latency', 0.1]]
+[00:16:22] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:16:29] cluster A: HEALTHY  H=1.0 workers=2 R=0.92 causes=[['stall', 0.003]]
+[00:16:29] cluster B: HEALTHY  H=0.99 workers=2 R=0.92 causes=[['latency', 0.007]]
+[00:16:29] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:16:36] cluster A: HEALTHY  H=1.0 workers=2 R=0.92 causes=[]
+[00:16:36] cluster B: HEALTHY  H=1.0 workers=2 R=0.92 causes=[]
+[00:16:36] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:16:46] cluster A: HEALTHY  H=0.99 workers=2 R=0.93 causes=[['stall', 0.013]]
+[00:16:46] cluster B: SUSPECT  H=0.9 workers=2 R=0.92 causes=[['latency', 0.1]]
+[00:16:46] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:16:57] cluster A: HEALTHY  H=0.97 workers=2 R=0.93 causes=[['stall', 0.028]]
+[00:16:57] cluster B: HEALTHY  H=1.0 workers=2 R=0.93 causes=[]
+[00:16:57] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:17:07] cluster A: HEALTHY  H=0.96 workers=2 R=0.93 causes=[['stall', 0.04]]
+[00:17:07] cluster B: HEALTHY  H=1.0 workers=2 R=0.93 causes=[]
+[00:17:07] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:17:07] === INJECT cluster_outage on cluster A ===
+[00:17:13] {
+[00:17:13]   "injected": "cluster_outage",
+[00:17:13]   "cluster": "A",
+[00:17:13]   "at": 1791485233.1182494,
+[00:17:13]   "info": {
+[00:17:13]     "fault": "cluster_outage",
+[00:17:13]     "cluster": "A",
+[00:17:13]     "ts": 1791485230.384858,
+[00:17:13]     "target": [
+[00:17:13]       "rmc-master-a",
+[00:17:14]       "rmc-worker-a1",
+[00:17:14]       "rmc-worker-a2"
+[00:17:14]     ]
+[00:17:14]   }
+[00:17:14] }
+[00:17:24] cluster A: FAILED   H=0.29 workers=0 R=0.93 causes=[['unreachable', 0.45], ['workers_lost', 0.25], ['stall', 0.005]]
+[00:17:24] cluster B: HEALTHY  H=1.0 workers=2 R=0.93 causes=[]
+[00:17:24] job etl_taxi-dc33e181: RUNNING on A attempts=1 failovers=0
+[00:17:36] cluster A: FAILED   H=0.3 workers=0 R=0.71 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:17:36] cluster B: HEALTHY  H=0.99 workers=2 R=0.93 causes=[['stall', 0.005]]
+[00:17:36] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:18:01] cluster A: FAILED   H=0.3 workers=0 R=0.67 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:18:01] cluster B: HEALTHY  H=0.97 workers=2 R=0.94 causes=[['stall', 0.033]]
+[00:18:01] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:18:13] cluster A: FAILED   H=0.3 workers=0 R=0.65 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:18:13] cluster B: HEALTHY  H=1.0 workers=2 R=0.94 causes=[]
+[00:18:13] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:18:29] cluster A: FAILED   H=0.3 workers=0 R=0.63 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:18:29] cluster B: HEALTHY  H=0.98 workers=2 R=0.94 causes=[['stall', 0.02]]
+[00:18:29] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:18:53] cluster A: FAILED   H=0.3 workers=0 R=0.60 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:18:53] cluster B: HEALTHY  H=1.0 workers=2 R=0.94 causes=[]
+[00:18:53] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:19:13] cluster A: FAILED   H=0.3 workers=0 R=0.58 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:19:13] cluster B: HEALTHY  H=1.0 workers=2 R=0.94 causes=[]
+[00:19:13] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:19:25] cluster A: FAILED   H=0.3 workers=0 R=0.57 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:19:25] cluster B: HEALTHY  H=0.98 workers=2 R=0.94 causes=[['stall', 0.015]]
+[00:19:25] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:19:37] cluster A: FAILED   H=0.3 workers=0 R=0.56 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:19:37] cluster B: HEALTHY  H=0.97 workers=2 R=0.95 causes=[['stall', 0.03]]
+[00:19:37] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:19:53] cluster A: FAILED   H=0.3 workers=0 R=0.54 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:19:53] cluster B: HEALTHY  H=0.99 workers=2 R=0.95 causes=[['stall', 0.005]]
+[00:19:53] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:20:13] cluster A: FAILED   H=0.3 workers=0 R=0.53 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:20:13] cluster B: HEALTHY  H=1.0 workers=2 R=0.95 causes=[]
+[00:20:13] job etl_taxi-dc33e181: RUNNING on B attempts=2 failovers=1
+[00:20:32] cluster A: FAILED   H=0.3 workers=0 R=0.52 causes=[['unreachable', 0.45], ['workers_lost', 0.25]]
+[00:20:33] cluster B: HEALTHY  H=1.0 workers=2 R=0.95 causes=[['stall', 0.005]]
+[00:20:33] job etl_taxi-dc33e181: SUCCEEDED on B attempts=2 failovers=1
+[00:20:33] === decision log (explanations) ===
+[00:20:36] [
+[00:20:36]   {
+[00:20:36]     "ts": 1791485026.488718,
+[00:20:36]     "kind": "transition",
+[00:20:36]     "cluster": "A",
+[00:20:36]     "detector": "health",
+[00:20:36]     "old": "HEALTHY",
+[00:20:36]     "new": "SUSPECT",
+[00:20:36]     "reason": "H=0.30 (unreachable=0.45, workers_lost=0.25)",
+[00:20:36]     "health": 0.3,
+[00:20:37]     "contributions": {
+[00:20:37]       "unreachable": 0.45,
+[00:20:37]       "workers_lost": 0.25,
+[00:20:37]       "latency": 0.0,
+[00:20:37]       "stall": 0.0,
+[00:20:37]       "executor_loss": 0.0
+[00:20:37]     }
+[00:20:37]   },
+[00:20:37]   {
+[00:20:37]     "ts": 1791485026.488718,
+[00:20:38]     "kind": "transition",
+[00:20:38]     "cluster": "B",
+[00:20:38]     "detector": "health",
+[00:20:38]     "old": "HEALTHY",
+[00:20:38]     "new": "SUSPECT",
+[00:20:38]     "reason": "H=0.30 (unreachable=0.45, workers_lost=0.25)",
+[00:20:38]     "health": 0.3,
+[00:20:38]     "contributions": {
+[00:20:38]       "unreachable": 0.45,
+[00:20:38]       "workers_lost": 0.25,
+[00:20:38]       "latency": 0.0,
+[00:20:39]       "stall": 0.0,
+[00:20:39]       "executor_loss": 0.0
+[00:20:39]     }
+[00:20:39]   },
+[00:20:39]   {
+[00:20:39]     "ts": 1791485030.489124,
+[00:20:39]     "kind": "transition",
+[00:20:39]     "cluster": "A",
+[00:20:39]     "detector": "health",
+[00:20:39]     "old": "SUSPECT",
+[00:20:39]     "new": "FAILED",
+[00:20:40]     "reason": "H=0.30 (unreachable=0.45, workers_lost=0.25)",
+[00:20:40]     "health": 0.3,
+[00:20:40]     "contributions": {
+[00:20:40]       "unreachable": 0.45,
+[00:20:40]       "workers_lost": 0.25,
+[00:20:40]       "latency": 0.0,
+[00:20:40]       "stall": 0.0,
+[00:20:40]       "executor_loss": 0.0
+[00:20:40]     }
+[00:20:40]   },
+[00:20:40]   {
+[00:20:41]     "ts": 1791485030.489124,
+[00:20:41]     "kind": "transition",
+[00:20:41]     "cluster": "B",
+[00:20:41]     "detector": "health",
+[00:20:41]     "old": "SUSPECT",
+[00:20:42]     "new": "FAILED",
+[00:20:42]     "reason": "H=0.30 (unreachable=0.45, workers_lost=0.25)",
+[00:20:42]     "health": 0.3,
+[00:20:42]     "contributions": {
+[00:20:42]       "unreachable": 0.45,
+[00:20:42]       "workers_lost": 0.25,
+[00:20:42]       "latency": 0.0,
+[00:20:42]       "stall": 0.0,
+[00:20:42]       "executor_loss": 0.0
+[00:20:42]     }
+[00:20:43]   },
+[00:20:43]   {
+[00:20:43]     "ts": 1791485046.4914386,
+[00:20:43]     "kind": "transition",
+[00:20:43]     "cluster": "A",
+[00:20:43]     "detector": "health",
+[00:20:43]     "old": "FAILED",
+[00:20:44]     "new": "HEALTHY",
+[00:20:44]     "reason": "H=1.00",
+[00:20:44]     "health": 1.0,
+[00:20:44]     "contributions": {
+[00:20:44]       "unreachable": 0.0,
+[00:20:44]       "workers_lost": 0.0,
+[00:20:44]       "latency": 0.0,
+[00:20:45]       "stall": 0.0,
+[00:20:45]       "executor_loss": 0.0
+[00:20:45]     }
+[00:20:45]   },
+[00:20:45]   {
+[00:20:46]     "ts": 1791485046.4914386,
+[00:20:46]     "kind": "transition",
+[00:20:46]     "cluster": "B",
+[00:20:46]     "detector": "health",
+[00:20:46]     "old": "FAILED",
+[00:20:46]     "new": "HEALTHY",
+[00:20:47]     "reason": "H=1.00",
+[00:20:47]     "health": 1.0,
+[00:20:47]     "contributions": {
+[00:20:47]       "unreachable": 0.0,
+[00:20:47]       "workers_lost": 0.0,
+[00:20:47]       "latency": 0.0,
+[00:20:47]       "stall": 0.0,
+[00:20:47]       "executor_loss": 0.0
+[00:20:48]     }
+[00:20:48]   },
+[00:20:48]   {
+[00:20:48]     "ts": 1791485153.916319,
+[00:20:48]     "kind": "submit",
+[00:20:48]     "job_id": "etl_taxi-dc33e181",
+[00:20:48]     "attempt": 0,
+[00:20:49]     "cluster": "A",
+[00:20:49]     "mtbf_s": 373.4,
+[00:20:49]     "reason": "argmin J -> A (J_A=0.000, J_B=0.000)"
+[00:20:49]   },
+[00:20:49]   {
+[00:20:49]     "ts": 1791485164.5341032,
+[00:20:49]     "kind": "transition",
+[00:20:50]     "cluster": "A",
+[00:20:50]     "detector": "health",
+[00:20:50]     "old": "HEALTHY",
+[00:20:50]     "new": "SUSPECT",
+[00:20:50]     "reason": "H=0.89 (latency=0.1, stall=0.013)",
+[00:20:50]     "health": 0.887,
+[00:20:50]     "contributions": {
+[00:20:50]       "unreachable": 0.0,
+[00:20:51]       "workers_lost": 0.0,
+[00:20:51]       "latency": 0.1,
+[00:20:51]       "stall": 0.013,
+[00:20:51]       "executor_loss": 0.0
+[00:20:51]     }
+[00:20:51]   },
+[00:20:51]   {
+[00:20:51]     "ts": 1791485164.5341032,
+[00:20:51]     "kind": "transition",
+[00:20:52]     "cluster": "B",
+[00:20:52]     "detector": "health",
+[00:20:52]     "old": "HEALTHY",
+[00:20:52]     "new": "SUSPECT",
+[00:20:52]     "reason": "H=0.90 (latency=0.1)",
+[00:20:52]     "health": 0.9,
+[00:20:52]     "contributions": {
+[00:20:52]       "unreachable": 0.0,
+[00:20:53]       "workers_lost": 0.0,
+[00:20:53]       "latency": 0.1,
+[00:20:53]       "stall": 0.0,
+[00:20:53]       "executor_loss": 0.0
+[00:20:53]     }
+[00:20:53]   },
+[00:20:53]   {
+[00:20:53]     "ts": 1791485166.534571,
+[00:20:53]     "kind": "transition",
+[00:20:54]     "cluster": "A",
+[00:20:54]     "detector": "health",
+[00:20:54]     "old": "SUSPECT",
+[00:20:54]     "new": "HEALTHY",
+[00:20:54]     "reason": "H=0.98 (stall=0.016)",
+[00:20:54]     "health": 0.984,
+[00:20:54]     "contributions": {
+[00:20:54]       "unreachable": 0.0,
+[00:20:54]       "workers_lost": 0.0,
+[00:20:55]       "latency": 0.0,
+[00:20:55]       "stall": 0.016,
+[00:20:55]       "executor_loss": 0.0
+[00:20:55]     }
+[00:20:55]   },
+[00:20:55]   {
+[00:20:55]     "ts": 1791485166.534571,
+[00:20:55]     "kind": "transition",
+[00:20:55]     "cluster": "B",
+[00:20:55]     "detector": "health",
+[00:20:56]     "old": "SUSPECT",
+[00:20:56]     "new": "HEALTHY",
+[00:20:56]     "reason": "H=0.95 (latency=0.046)",
+[00:20:56]     "health": 0.954,
+[00:20:56]     "contributions": {
+[00:20:56]       "unreachable": 0.0,
+[00:20:56]       "workers_lost": 0.0,
+[00:20:56]       "latency": 0.046,
+[00:20:56]       "stall": 0.0,
+[00:20:56]       "executor_loss": 0.0
+[00:20:57]     }
+[00:20:57]   },
+[00:20:57]   {
+[00:20:57]     "ts": 1791485168.535004,
+[00:20:57]     "kind": "transition",
+[00:20:57]     "cluster": "B",
+[00:20:57]     "detector": "health",
+[00:20:57]     "old": "HEALTHY",
+[00:20:57]     "new": "SUSPECT",
+[00:20:57]     "reason": "H=0.90 (latency=0.1)",
+[00:20:57]     "health": 0.9,
+[00:20:58]     "contributions": {
+[00:20:58]       "unreachable": 0.0,
+[00:20:58]       "workers_lost": 0.0,
+[00:20:58]       "latency": 0.1,
+[00:20:58]       "stall": 0.0,
+[00:20:58]       "executor_loss": 0.0
+[00:20:58]     }
+[00:20:58]   },
+[00:20:58]   {
+[00:20:58]     "ts": 1791485172.535626,
+[00:20:58]     "kind": "transition",
+[00:20:58]     "cluster": "A",
+[00:20:58]     "detector": "health",
+[00:20:59]     "old": "HEALTHY",
+[00:20:59]     "new": "SUSPECT",
+[00:20:59]     "reason": "H=0.94 (latency=0.039, stall=0.023)",
+[00:20:59]     "health": 0.938,
+[00:20:59]     "contributions": {
+[00:20:59]       "unreachable": 0.0,
+[00:20:59]       "workers_lost": 0.0,
+[00:20:59]       "latency": 0.039,
+[00:20:59]       "stall": 0.023,
+[00:20:59]       "executor_loss": 0.0
+[00:21:00]     }
+[00:21:00]   },
+[00:21:00]   {
+[00:21:00]     "ts": 1791485174.549969,
+[00:21:00]     "kind": "transition",
+[00:21:00]     "cluster": "A",
+[00:21:00]     "detector": "health",
+[00:21:00]     "old": "SUSPECT",
+[00:21:00]     "new": "HEALTHY",
+[00:21:00]     "reason": "H=0.97 (stall=0.026)",
+[00:21:00]     "health": 0.974,
+[00:21:01]     "contributions": {
+[00:21:01]       "unreachable": 0.0,
+[00:21:01]       "workers_lost": 0.0,
+[00:21:01]       "latency": 0.0,
+[00:21:01]       "stall": 0.026,
+[00:21:01]       "executor_loss": 0.0
+[00:21:01]     }
+[00:21:01]   },
+[00:21:01]   {
+[00:21:01]     "ts": 1791485188.5691032,
+[00:21:01]     "kind": "transition",
+[00:21:01]     "cluster": "B",
+[00:21:01]     "detector": "health",
+[00:21:02]     "old": "SUSPECT",
+[00:21:02]     "new": "HEALTHY",
+[00:21:02]     "reason": "H=0.99 (latency=0.007)",
+[00:21:02]     "health": 0.993,
+[00:21:02]     "contributions": {
+[00:21:02]       "unreachable": 0.0,
+[00:21:02]       "workers_lost": 0.0,
+[00:21:02]       "latency": 0.007,
+[00:21:02]       "stall": 0.0,
+[00:21:02]       "executor_loss": 0.0
+[00:21:02]     }
+[00:21:02]   },
+[00:21:02]   {
+[00:21:02]     "ts": 1791485204.5727375,
+[00:21:02]     "kind": "transition",
+[00:21:02]     "cluster": "B",
+[00:21:03]     "detector": "health",
+[00:21:03]     "old": "HEALTHY",
+[00:21:03]     "new": "SUSPECT",
+[00:21:03]     "reason": "H=0.90 (latency=0.1)",
+[00:21:03]     "health": 0.9,
+[00:21:03]     "contributions": {
+[00:21:03]       "unreachable": 0.0,
+[00:21:03]       "workers_lost": 0.0,
+[00:21:03]       "latency": 0.1,
+[00:21:03]       "stall": 0.0,
+[00:21:03]       "executor_loss": 0.0
+[00:21:03]     }
+[00:21:03]   },
+[00:21:03]   {
+[00:21:03]     "ts": 1791485206.5730524,
+[00:21:03]     "kind": "transition",
+[00:21:03]     "cluster": "B",
+[00:21:03]     "detector": "health",
+[00:21:03]     "old": "SUSPECT",
+[00:21:03]     "new": "HEALTHY",
+[00:21:03]     "reason": "H=1.00",
+[00:21:04]     "health": 1.0,
+[00:21:04]     "contributions": {
+[00:21:04]       "unreachable": 0.0,
+[00:21:04]       "workers_lost": 0.0,
+[00:21:04]       "latency": 0.0,
+[00:21:04]       "stall": 0.0,
+[00:21:04]       "executor_loss": 0.0
+[00:21:04]     }
+[00:21:04]   },
+[00:21:04]   {
+[00:21:04]     "ts": 1791485230.5867753,
+[00:21:04]     "kind": "transition",
+[00:21:04]     "cluster": "A",
+[00:21:04]     "detector": "health",
+[00:21:04]     "old": "HEALTHY",
+[00:21:04]     "new": "SUSPECT",
+[00:21:05]     "reason": "H=0.25 (unreachable=0.45, workers_lost=0.25)",
+[00:21:05]     "health": 0.255,
+[00:21:05]     "contributions": {
+[00:21:05]       "unreachable": 0.45,
+[00:21:05]       "workers_lost": 0.25,
+[00:21:05]       "latency": 0.0,
+[00:21:05]       "stall": 0.045,
+[00:21:05]       "executor_loss": 0.0
+[00:21:05]     }
+[00:21:05]   },
+[00:21:05]   {
+[00:21:05]     "ts": 1791485233.1111596,
+[00:21:05]     "kind": "fault_injected",
+[00:21:05]     "fault": "cluster_outage",
+[00:21:05]     "cluster": "A",
+[00:21:05]     "info": {
+[00:21:05]       "fault": "cluster_outage",
+[00:21:05]       "cluster": "A",
+[00:21:05]       "ts": 1791485230.384858,
+[00:21:05]       "target": [
+[00:21:05]         "rmc-master-a",
+[00:21:06]         "rmc-worker-a1",
+[00:21:06]         "rmc-worker-a2"
+[00:21:06]       ]
+[00:21:06]     }
+[00:21:06]   },
+[00:21:06]   {
+[00:21:06]     "ts": 1791485236.66656,
+[00:21:06]     "kind": "transition",
+[00:21:06]     "cluster": "A",
+[00:21:06]     "detector": "health",
+[00:21:06]     "old": "SUSPECT",
+[00:21:06]     "new": "FAILED",
+[00:21:06]     "reason": "H=0.29 (unreachable=0.45, workers_lost=0.25)",
+[00:21:06]     "health": 0.295,
+[00:21:06]     "contributions": {
+[00:21:06]       "unreachable": 0.45,
+[00:21:06]       "workers_lost": 0.25,
+[00:21:06]       "latency": 0.0,
+[00:21:06]       "stall": 0.005,
+[00:21:06]       "executor_loss": 0.0
+[00:21:06]     }
+[00:21:07]   },
+[00:21:07]   {
+[00:21:07]     "ts": 1791485236.66656,
+[00:21:07]     "kind": "keep",
+[00:21:07]     "job_id": "etl_taxi-dc33e181",
+[00:21:07]     "cluster": "A",
+[00:21:07]     "reason": "cluster FAILED but job still making progress -> not migrated"
+[00:21:07]   },
+[00:21:07]   {
+[00:21:07]     "ts": 1791485244.388095,
+[00:21:07]     "kind": "failover",
+[00:21:07]     "job_id": "etl_taxi-dc33e181",
+[00:21:07]     "source": "A",
+[00:21:07]     "target": "B",
+[00:21:07]     "reason": "cluster A FAILED, no progress for 12s; argmin J -> B (J_B=0.000)"
+[00:21:07]   },
+[00:21:08]   {
+[00:21:08]     "ts": 1791485244.388095,
+[00:21:08]     "kind": "submit",
+[00:21:08]     "job_id": "etl_taxi-dc33e181",
+[00:21:08]     "attempt": 1,
+[00:21:08]     "cluster": "B",
+[00:21:08]     "mtbf_s": 324.1,
+[00:21:08]     "reason": "failover from A: argmin J -> B (J_B=0.000)"
+[00:21:08]   },
+[00:21:08]   {
+[00:21:08]     "ts": 1791485256.506832,
+[00:21:08]     "kind": "transition",
+[00:21:08]     "cluster": "B",
+[00:21:08]     "detector": "health",
+[00:21:08]     "old": "HEALTHY",
+[00:21:08]     "new": "SUSPECT",
+[00:21:08]     "reason": "H=0.88 (latency=0.1, stall=0.015)",
+[00:21:08]     "health": 0.885,
+[00:21:08]     "contributions": {
+[00:21:08]       "unreachable": 0.0,
+[00:21:08]       "workers_lost": 0.0,
+[00:21:08]       "latency": 0.1,
+[00:21:08]       "stall": 0.015,
+[00:21:08]       "executor_loss": 0.0
+[00:21:08]     }
+[00:21:09]   },
+[00:21:09]   {
+[00:21:09]     "ts": 1791485260.6923833,
+[00:21:09]     "kind": "transition",
+[00:21:09]     "cluster": "A",
+[00:21:09]     "detector": "timeout",
+[00:21:09]     "old": "HEALTHY",
+[00:21:09]     "new": "FAILED",
+[00:21:09]     "reason": "unreachable >= 30s",
+[00:21:09]     "health": 0.3,
+[00:21:09]     "contributions": {
+[00:21:09]       "unreachable": 0.45,
+[00:21:09]       "workers_lost": 0.25,
+[00:21:09]       "latency": 0.0,
+[00:21:09]       "stall": 0.0,
+[00:21:09]       "executor_loss": 0.0
+[00:21:09]     }
+[00:21:09]   },
+[00:21:09]   {
+[00:21:09]     "ts": 1791485265.8186872,
+[00:21:09]     "kind": "transition",
+[00:21:09]     "cluster": "B",
+[00:21:09]     "detector": "health",
+[00:21:10]     "old": "SUSPECT",
+[00:21:10]     "new": "HEALTHY",
+[00:21:10]     "reason": "H=0.97 (stall=0.027)",
+[00:21:10]     "health": 0.973,
+[00:21:10]     "contributions": {
+[00:21:10]       "unreachable": 0.0,
+[00:21:10]       "workers_lost": 0.0,
+[00:21:10]       "latency": 0.0,
+[00:21:10]       "stall": 0.027,
+[00:21:10]       "executor_loss": 0.0
+[00:21:10]     }
+[00:21:10]   },
+[00:21:10]   {
+[00:21:10]     "ts": 1791485420.7351189,
+[00:21:10]     "kind": "transition",
+[00:21:10]     "cluster": "B",
+[00:21:10]     "detector": "health",
+[00:21:10]     "old": "HEALTHY",
+[00:21:10]     "new": "SUSPECT",
+[00:21:10]     "reason": "H=0.90 (latency=0.1)",
+[00:21:10]     "health": 0.9,
+[00:21:10]     "contributions": {
+[00:21:10]       "unreachable": 0.0,
+[00:21:10]       "workers_lost": 0.0,
+[00:21:10]       "latency": 0.1,
+[00:21:10]       "stall": 0.0,
+[00:21:11]       "executor_loss": 0.0
+[00:21:11]     }
+[00:21:11]   },
+[00:21:11]   {
+[00:21:11]     "ts": 1791485424.724472,
+[00:21:11]     "kind": "transition",
+[00:21:11]     "cluster": "B",
+[00:21:11]     "detector": "health",
+[00:21:11]     "old": "SUSPECT",
+[00:21:11]     "new": "HEALTHY",
+[00:21:11]     "reason": "H=1.00 (stall=0.005)",
+[00:21:11]     "health": 0.995,
+[00:21:11]     "contributions": {
+[00:21:11]       "unreachable": 0.0,
+[00:21:11]       "workers_lost": 0.0,
+[00:21:11]       "latency": 0.0,
+[00:21:11]       "stall": 0.005,
+[00:21:11]       "executor_loss": 0.0
+[00:21:11]     }
+[00:21:11]   },
+[00:21:11]   {
+[00:21:11]     "ts": 1791485424.724472,
+[00:21:11]     "kind": "job_end",
+[00:21:11]     "job_id": "etl_taxi-dc33e181",
+[00:21:12]     "state": "SUCCEEDED",
+[00:21:12]     "outcome": "completed",
+[00:21:12]     "attempts": 2,
+[00:21:12]     "failovers": 1,
+[00:21:12]     "duration_s": 270.81
+[00:21:12]   }
+[00:21:12] ]
+[00:21:12] === restore cluster A ===
+[00:21:12] {
+[00:21:12]   "restored": true
+[00:21:12] }

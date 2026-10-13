@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: rmc-controller
+    static_configs:
+      - targets: ["controller:8000"]
+
+  - job_name: spark-master
+    metrics_path: /metrics/master/prometheus
+    static_configs:
+      - targets: ["spark-master-a:8080"]
+        labels: {cluster: "A"}
+      - targets: ["spark-master-b:8080"]
+        labels: {cluster: "B"}
+
+  - job_name: spark-worker
+    metrics_path: /metrics/prometheus
+    static_configs:
+      - targets: ["spark-worker-a1:8081", "spark-worker-a2:8081"]
+        labels: {cluster: "A"}
+      - targets: ["spark-worker-b1:8081", "spark-worker-b2:8081"]
+        labels: {cluster: "B"}

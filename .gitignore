@@ -1,0 +1,19 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.part
+.venv/
+
+# large downloads (re-create with scripts/download_data.py)
+datasets/tlc/
+datasets/case/
+
+# runtime output of the API service and smoke tests
+results/events/
+results/logs/
+results/decisions.jsonl
+results/raw/cluster_timeseries.csv
+results/raw/smoke/
+# spark-submit logs are big; runs.csv, decisions, timeseries and events of the real
+# experiments ARE committed (raw data for the paper's data-availability statement)
+results/raw/*/logs/

@@ -1,0 +1,136 @@
+@section Fault Detection and Monitoring Framework
+
+@sub Monitoring and Observability Architecture
+
+Observability in RMC-Spark has two purposes: operators need dashboards to understand the platform, and the controller needs signals to make decisions. Fig. {fig:monitoring} shows how both are served. Spark masters and workers expose metrics in Prometheus format through Spark's metrics servlet, Prometheus scrapes them together with the controller's own metrics every five seconds, and Grafana renders a dashboard with health scores, cluster states, alive workers, utilisation, failovers and reliability scores. Industrial surveys show that such metric pipelines, often combined with distributed tracing, are now standard for container-based systems [@usman2022survey, @li2021enjoy]. The controller does not depend on Prometheus for its decisions: it probes the masters and drivers directly in its control loop, which keeps the detection path short and free of scrape delays.
+
+@figure monitoring | Fig 11 Monitoring and Observability Architecture | Monitoring and observability architecture. The controller probes masters and drivers directly for decisions; Prometheus and Grafana provide the operator view of the same signals.
+
+@sub Health Signals
+
+The health model uses five signals per cluster, chosen to cover the failure scenarios of Fig. {fig:failures}. The unreachable signal is set when the master's JSON endpoint does not answer within the 1.5 s probe timeout or reports a status other than alive. The workers-lost signal is the fraction of expected workers that the master does not report as alive. The latency signal captures gray failures: the response time of the master probe is tracked with an exponentially weighted moving average and variance, and a standardised deviation is computed as
+
+@equation zscore
+
+where x_t is the probe latency at poll t and μ_{t−1} and σ_{t−1} are the EWMA mean and standard deviation before the poll. The anomaly level of the latency signal rises linearly from zero at |z| = 3 to one at |z| = 8. Samples whose |z| exceeds the lower threshold are not absorbed into the baseline, so a long degradation cannot redefine what normal looks like, a known pitfall of adaptive detectors [@choi2021deep, @darban2024deep]. The stall signal is the time since the running job on the cluster last completed a task, divided by a 120 s limit, and the executor-loss signal is the fraction of the job's executors that the driver reports as lost. The last two signals come from the driver and therefore reflect what the job actually experiences, which is what the master alone cannot see in a gray failure [@huang2017gray].
+
+@sub Health Assessment
+
+Each signal i yields an anomaly level a_{i,k} between zero and one for cluster k. The health score combines them additively:
+
+@equation health
+
+with weights w_i that sum to one. The weights, given in Table {tab:monitoring}, reflect severity: an unreachable master (0.45) and lost workers (0.25) indicate loss of capacity, a stalled job (0.15) indicates loss of progress, abnormal latency (0.10) indicates degradation, and executor loss (0.05) is partly handled by Spark itself. One rule overrides the sum: a reachable master that reports zero workers has no capacity, so its health is set to zero. Because the model is additive, each signal's contribution w_i a_{i,k} is directly interpretable, and the two largest contributions are logged as the cause of every state change. Additive and threshold-based detectors are less expressive than deep anomaly detectors, but their behaviour is predictable and explainable, which surveys of AIOps adoption identify as a practical requirement [@notaro2021survey, @hrusto2025monitoring].
+
+@table monitoring | Monitoring metrics and thresholds | wide | 22,30,10,38
+| Signal / parameter | Source and definition | Value | Effect |
+| Poll interval | Controller control loop | 2 s | Detection granularity |
+| Probe timeout | HTTP request to master /json | 1.5 s | Unreachable if exceeded |
+| unreachable weight | Master probe failed or status not ALIVE | 0.45 | Anomaly 1 when unreachable |
+| workers_lost weight | 1 − alive / expected workers | 0.25 | Linear in fraction lost; 0 workers forces H = 0 |
+| latency weight | EWMA z-score of probe latency (α = 0.2) | 0.10 | Anomaly ramps from |z| = 3 to |z| = 8 |
+| stall weight | Time since last completed task / 120 s | 0.15 | Anomaly 1 after 120 s without progress |
+| executor_loss weight | Lost / seen executors of running job | 0.05 | Anomaly 1 if all executors lost |
+| Suspect threshold | H below this value | 0.95 | Cluster avoided for new placements |
+| Failed threshold | H below this value for 3 consecutive polls | 0.50 | Cluster declared FAILED |
+| Recovery rule | H at least 0.95 for 5 consecutive polls | — | FAILED to HEALTHY |
+| Migration stall | No task progress on a FAILED cluster | 10 s | Job migrated |
+| Baseline timeout (B3) | Master unreachable continuously | 30 s | Naive failover |
+
+@sub Fault Detection Workflow
+
+Fig. {fig:detection} shows the detection workflow. The scores feed a state machine with three states per cluster. A cluster is HEALTHY while its score is at least 0.95. Any lower score makes it SUSPECT, which removes it from consideration for new work but does not affect running jobs. A cluster becomes FAILED only after three consecutive polls below 0.50, which, with a 2 s poll interval, means about six seconds of strong evidence; a single slow probe cannot trigger failover. A FAILED cluster returns to HEALTHY only after five consecutive polls at or above 0.95. This hysteresis prevents oscillation when a cluster flaps during recovery.
+
+@figure detection | Fig 12 Fault Detection Workflow | Fault detection workflow and cluster state machine. Thresholds create hysteresis: three polls below 0.50 to fail, five polls at or above 0.95 to recover.
+
+The thresholds are set so that different failures produce different states. An unreachable master contributes 0.45 and, by construction, also counts all workers as lost, giving a score of 0.30 and hence FAILED after three polls. A fully anomalous latency signal alone yields 0.90 and a long stall alone 0.85; both make the cluster SUSPECT but not FAILED, because degradation does not justify moving a running job. The baseline B3 replaces this machine with a fixed rule, unreachable for 30 s, which represents typical scripted high-availability checks.
+
+@sub Calibration and False Alarms
+
+Two kinds of error matter for a detector that triggers recovery. A false alarm moves or restarts a job unnecessarily; a missed detection leaves a job stuck until its deadline. The design reduces false alarms through three mechanisms: consecutive-poll confirmation, the separation of SUSPECT from FAILED, and the requirement that a job be stalled before it is migrated. Missed detections are limited by the fact that a dead master or a fully disconnected cluster always produces the unreachable signal, whose weight, together with the implied loss of workers, drives the score below the failure threshold. The latency signal needs a warm-up of five probes before it reports anomalies, so faults injected in the first ten seconds after the controller starts are detected only through the other signals; in the experiments, the controller runs continuously, so this case does not arise.
+
+@sub Workload Diagnostics and Early Failure Detection
+
+The driver-side signals provide diagnostics beyond cluster state. Because the stall and executor-loss signals are computed per job, the controller can tell whether a cluster problem actually affects the job that runs on it. This enables the progress-aware recovery rule of Section IX. The same signals are exported to Prometheus, so an operator sees the health score drop and the cause listed in the decision log at the same time. Early detection in the stronger sense of predicting failures before they occur [@gao2020task, @li2020predicting] is not part of the current design; the anomaly model is reactive, and Section XXI discusses how predictive models could feed the same health interface. Anomaly detection for Kubernetes infrastructures follows a similar baseline-and-deviation approach on infrastructure metrics [@almarazrivera2023anomaly].
+
+@section Fault-Tolerant Recovery and Resilience Layer
+
+@sub Recovery Architecture
+
+Recovery in RMC-Spark operates at three levels, shown in Fig. {fig:recovery}(a). At the task level, Spark retries tasks and recomputes lost partitions from lineage without involving the controller. At the attempt level, the controller restarts a crashed driver on the same cluster if that cluster is healthy; the new attempt restores committed stages. At the cluster level, the controller migrates a stalled job to another cluster, where the new attempt again restores committed stages. Each level is cheaper than the next, and each level is used only when the previous one cannot help.
+
+@figure recovery | Fig 13 Fault Recovery Architecture | (a) Fault recovery architecture with task-, attempt- and cluster-level recovery. (b) Optimal checkpoint interval τ* from Eq. ({eq:daly}) and expected lost work per failure from Eq. ({eq:lostwork}) as functions of the MTBF for checkpoint costs of 2, 5 and 10 s, computed from the formulas.
+
+@sub Adaptive Checkpointing
+
+Checkpointing trades a known cost now for a smaller expected loss later. If a checkpoint costs C seconds and failures arrive with mean time between failures M, Young showed that the interval between checkpoints that minimises expected total time is approximately √(2CM) [@young1974first]. Daly's higher-order estimate is more accurate when C is not small relative to M [@daly2004higher]:
+
+@equation daly
+
+for C < 2M, with τ* = M otherwise. With checkpoints every τ seconds, a failure loses on average half an interval of work plus the cost of the checkpoint being written:
+
+@equation lostwork
+
+The rds library applies these results at stage granularity. It tracks the uncheckpointed work W, the sum of the measured compute times of stages since the last committed stage, and the checkpoint cost C as an exponentially weighted average of measured write times with a prior of 3 s. After each stage it checkpoints if W ≥ τ*(C, M). The MTBF is not known in advance and changes with the environment, so the controller estimates it online:
+
+@equation mtbf
+
+where T_up is the observed cluster uptime, N_f the number of observed cluster failures, and M_0 = 900 s with weight n_0 = 1 is a prior that keeps the estimate finite before the first failure. As failures are observed, M̂ decreases, τ* shrinks and the library checkpoints more often; in a calm period the opposite happens. Fig. {fig:recovery}(b) plots τ* and the expected lost work for representative checkpoint costs. Similar MTBF-tracking ideas have been studied for generic computing systems and stream processors [@sigdel2020realizing, @jayasekara2021optimizing, @akber2021fatm]; the contribution here is to apply them to data science pipeline stages and to share the estimate across clusters. Two non-adaptive policies serve as baselines: never, which relies on lineage only, and always, which checkpoints after every stage.
+
+@sub Lineage Recovery and Stage Restoration
+
+When a new attempt starts, the library lists all commit markers of the job in object storage and builds a map from stage name to sequence number. Each stage call then either restores its committed output, computes it, or, in linear pipelines, skips it because a later stage is already committed. Restored stages cost one read of their Parquet output; computed stages cost their normal compute time. The work redone after a failure is therefore bounded by the uncheckpointed work at the moment of failure, which is at most τ* plus the duration of the stage that was running. This is the same goal as RCMP's persistence of task outputs across jobs [@dinu2014rcmp] and lineage checkpointing [@kweun2020lineage], achieved here at the level of program stages and across clusters.
+
+@sub Failover Mechanisms and Workload Migration
+
+Table {tab:rules} in the Appendix summarises the recovery rules for the three recovery modes used in the experiments: none (standard Spark), naive (timeout-based active and passive failover) and smart (RMC-Spark). The smart rules embody two decisions. First, a driver that exits with an error on a healthy cluster is retried once on the same cluster, because a transient crash does not justify moving the job, and the retry resumes from checkpoints anyway. Second, a job on a FAILED cluster is migrated only if it has made no task progress for 10 s. In Spark's standalone mode, losing the master does not stop executors that are already running, so a job can finish even though its cluster is formally failed. A timeout-based script would restart such a job and waste its progress; RMC-Spark keeps it and records a keep decision.
+
+Fig. {fig:failover} shows the failover workflow for a cluster outage. The controller kills the driver's process group, frees its port, records the failover with its reason, selects a target with the placement cost, and launches a new attempt with an incremented attempt number. The decision log entry contains the source and target clusters, the stall duration and the placement scores of all candidates.
+
+@figure failover | Fig 14 Failover and Recovery Workflow | Failover and recovery workflow for a cluster outage, from detection to stage restoration on the target cluster. Timings refer to the configured thresholds.
+
+@sub Correctness of Resumption
+
+Resumption is correct if the output of a job that was interrupted and resumed equals the output of an uninterrupted run. Three properties of the design support this. Stage functions are deterministic, so recomputing a stage yields the same result. A stage output is used only if its commit marker exists, and the marker is written after the data, so a used output is always complete. Stage identity is defined by the job identifier and the stage name, so outputs of different jobs or different stages cannot be confused. Under these conditions, every stage output consumed by the final attempt is either recomputed by it or committed by an earlier attempt from the same inputs, which yields the same result. The case-study evaluation in Section XVIII checks this property empirically by comparing model quality between resumed and uninterrupted runs.
+
+@sub Self-Healing Strategies
+
+Self-healing combines automatic recovery of jobs with automatic re-admission of clusters. When a failed cluster is repaired and its health stays high for five polls, it becomes HEALTHY again and is eligible for new work. Jobs that waited because no cluster was available are resumed as soon as one becomes eligible. Streaming jobs recover through Spark's own mechanism: their offsets and state are checkpointed to object storage, so the restarted query on another cluster continues from the last committed micro-batch [@armbrust2018structured]. Self-healing in the sense of repairing the failed infrastructure itself, for example restarting containers or provisioning new nodes, is left to the infrastructure layer; in the testbed, the fault injector restores clusters between runs.
+
+@section Multi-Cluster Coordination and Orchestration Layer
+
+@sub Coordination Model
+
+Fig. {fig:coordination} shows the coordination model. The controller is the only component that knows about several clusters; the clusters themselves are unaware of each other, and the drivers know only the cluster they currently use. Coordination is therefore centralised and asynchronous: clusters are synchronised through shared state, not through messages. The shared state consists of the job identifier, the commit markers in object storage, and the controller's in-memory view of each cluster. This avoids changes to Spark and keeps the coordination protocol simple, at the cost of making the controller a component that must itself be made highly available in production, a point discussed in Section XX.
+
+@figure coordination | Fig 15 Multi-Cluster Coordination Model | Multi-cluster coordination model. Clusters do not communicate with each other; the controller coordinates them through probes, job attempts and shared commit markers in object storage.
+
+@sub Service Discovery and Cluster Registry
+
+Clusters are described in a registry file that lists, for each cluster, the master URL, the master's web endpoint, the container names used for fault injection and the expected number of workers. Adding a cluster means adding an entry; no code changes are needed. Container orchestration platforms solve the same problem with service discovery [@burns2016borg], and a production deployment could populate the registry from such a service.
+
+@sub Workload Placement
+
+When a job starts or must move, the orchestrator ranks the eligible clusters with a placement cost:
+
+@equation placement
+
+where L_k is the fraction of cores in use on cluster k, H_k its health score and T_k a normalised cost of moving the job's data and checkpoints to it. The weights α = 0.4, β = 0.5 and γ = 0.1 favour healthy clusters first and idle clusters second. Failed clusters and the cluster being left are excluded, and ties are broken by cluster name so that experiments are deterministic. In the testbed all data are in shared storage, so T_k is zero; in a geo-distributed deployment, it would be derived from data volume and inter-site bandwidth or price, as studied in geo-distributed analytics [@chen2021optimizing, @oh2021network]. Fig. {fig:orchestration} shows the orchestration framework around this cost.
+
+@figure orchestration | Fig 16 Workload Orchestration Framework | Workload orchestration framework: eligibility filtering, placement cost evaluation and decision logging for initial placement, retry and failover.
+
+@sub Orchestration Policies and Workload Balancing
+
+Placement is deliberately simple compared with Kubernetes schedulers and learned schedulers for cloud jobs [@carrion2022kubernetes, @kang2022job, @sanjalawe2025ai]. Three reasons motivate this choice. The number of clusters is small, so exhaustive scoring is cheap. Every decision must be explainable, which a weighted sum supports directly. And placement interacts with recovery, so its behaviour must be predictable during failures. Load balancing emerges from the load term: when both clusters are healthy, a new job goes to the less loaded one. Multi-cloud schedulers that optimise under security and reliability constraints [@zhu2021task] or learn scheduling policies [@raj2026meta] could replace Eq. ({eq:placement}) without changing the rest of the architecture, because the orchestrator is a separate component with a narrow interface.
+
+@sub Synchronisation and Consistency
+
+Because clusters do not communicate, consistency questions arise only through shared storage. Two attempts of the same job can overlap briefly if a stopped attempt's executors are still writing when the next attempt starts, for example after a network partition heals. The design tolerates this because stage writes are idempotent: both attempts write the same deterministic output to the same location in overwrite mode and then write the commit marker. The worst case is duplicated work, not inconsistent results. Streaming jobs rely on Structured Streaming's own protection against concurrent queries on one checkpoint location [@armbrust2018structured]. A production deployment would add fencing, for example by including the attempt number in the output path and committing by renaming the marker, to eliminate even duplicated work.
+
+@sub Scaling to More Clusters
+
+The coordination model extends to more than two clusters without changes to the protocol. Each additional cluster adds one probe per poll and one candidate to the placement function. The placement cost then also performs load balancing across a larger pool, and failover chooses among several healthy targets rather than a single passive one, which is a qualitative difference from active and passive designs such as B3. At large scale, the centralised controller would itself become a bottleneck or a single point of failure; partitioning jobs across controller replicas, each responsible for a subset of jobs but observing all clusters, is a natural extension.
+
+@sub Coordination Protocol
+
+The protocol for a job can be summarised in five steps. Submit: the controller creates a job record and places attempt zero. Run: the driver executes resilient stages and writes events, while the controller polls cluster and driver. Decide: on each poll, the controller applies the rules of Table {tab:rules}. Act: if needed, the controller stops the attempt and starts the next one on the chosen cluster with the same job identifier. Finish: on success or deadline, the controller records the outcome and updates the reliability statistics of the cluster that ran the final attempt. Because all cross-attempt state lives in object storage and attempts are numbered, a late write by a stopped attempt cannot be mistaken for progress of the current one.

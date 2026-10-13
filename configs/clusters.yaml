@@ -1,0 +1,66 @@
+# Cluster registry + controller tuning. Every threshold here is reported in Table 6 of the paper.
+clusters:
+  A:
+    master_url: spark://spark-master-a:7077
+    ui_url: http://spark-master-a:8080
+    master_container: rmc-master-a
+    worker_containers: [rmc-worker-a1, rmc-worker-a2]
+    expected_workers: 2
+  B:
+    master_url: spark://spark-master-b:7077
+    ui_url: http://spark-master-b:8080
+    master_container: rmc-master-b
+    worker_containers: [rmc-worker-b1, rmc-worker-b2]
+    expected_workers: 2
+
+storage:
+  checkpoint_root: s3a://checkpoints
+  data_root: s3a://data
+  results_root: s3a://results
+
+paths:
+  events_dir: /workspace/results/events      # rds stage events (JSONL, one file per job)
+  logs_dir: /workspace/results/logs          # spark-submit stdout/stderr
+  decisions_file: /workspace/results/decisions.jsonl
+  timeseries_file: /workspace/results/raw/cluster_timeseries.csv
+
+controller:
+  poll_interval_s: 2.0
+  probe_timeout_s: 1.5
+  # Health score H_k = 1 - sum_i w_i * a_i,k   (Eq. 8)
+  health_weights:
+    unreachable: 0.45
+    workers_lost: 0.25
+    latency: 0.10
+    stall: 0.15
+    executor_loss: 0.05
+  latency_ewma_alpha: 0.2
+  latency_z_low: 3.0        # |z| below this -> anomaly 0
+  latency_z_high: 8.0       # |z| above this -> anomaly 1
+  stall_limit_s: 120.0      # no task progress for this long -> stall anomaly 1 (long tasks are normal)
+  # State machine thresholds
+  suspect_threshold: 0.95   # a fully anomalous latency (w=0.10) or stall (w=0.15) signal alone -> SUSPECT
+  failed_threshold: 0.50    # needs an unreachable master or lost capacity
+  failed_consecutive: 3     # polls below failed_threshold before declaring FAILED
+  recovered_consecutive: 5  # polls above suspect_threshold before HEALTHY again
+  # A job on a FAILED cluster is migrated only once it has made no task progress for this long.
+  # (A dead master alone does not stop running executors in standalone mode.)
+  migrate_stall_s: 10.0
+  # Baseline B3 ("naive") detector: master unreachable for this long
+  naive_timeout_s: 30.0
+  # Placement cost J_k = alpha*load + beta*(1-H_k) + gamma*transfer   (Eq. 9)
+  placement: {alpha: 0.4, beta: 0.5, gamma: 0.1}
+  # Reliability score R_k = sum_j w_j s_j   (Eq. 10)
+  reliability_weights: {availability: 0.4, recovery: 0.2, success: 0.2, health: 0.2}
+  mttr_reference_s: 120.0
+  # MTBF prior used by the adaptive checkpoint policy before failures are observed
+  mtbf_prior_s: 900.0
+  mtbf_prior_weight: 1.0
+  max_retries_same_cluster: 1
+
+spark_submit:
+  driver_memory: 512m
+  executor_memory: 576m
+  executor_cores: 1
+  total_executor_cores: 4
+  ui_port_base: 4040
