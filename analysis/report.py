@@ -208,6 +208,13 @@ def main():
     a = p.parse_args()
     os.makedirs(a.out, exist_ok=True)
     runs = load_runs(a.raw_dir)
+    # a fault run whose job finished before fault_at_s never saw the fault; counting it would credit
+    # the system with surviving a fault it never experienced
+    missed = (runs["fault"] != "none") & runs["t_fault"].isna()
+    if missed.any():
+        print(f"excluding {int(missed.sum())} fault runs where the fault was never injected:")
+        print(runs.loc[missed, ["rep", "system", "fault", "duration_s"]].to_string(index=False))
+        runs = runs[~missed]
     runs.to_csv(os.path.join(a.out, "runs_enriched.csv"), index=False)
     t11, t12 = table11(runs), table12(runs)
     save_table(t11, a.out, "Table 11 Experimental Results Summary")

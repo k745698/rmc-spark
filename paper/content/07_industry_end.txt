@@ -2,31 +2,31 @@
 
 @sub Banking and Financial Services
 
-Financial institutions run analytics whose value decays within minutes, such as fraud screening, risk aggregation and regulatory reporting. Distributed big data approaches to Internet financial fraud detection show that such workloads are naturally expressed as distributed graph and machine learning pipelines [@zhou2021internet]. Fig. {fig:finance} shows how RMC-Spark would be deployed for a fraud analytics pipeline: transactions land in replicated object storage, feature and model-scoring stages run as resilient stages on a primary cluster, and a second cluster in another availability zone takes over if the first fails. The case-study workload applies the machine learning pipeline of W2 to the ULB credit-card dataset, which contains anonymised card transactions with a highly imbalanced fraud label, and injects a cluster outage during model training. [[Report: completed on A then B, number of restored stages, area under the precision-recall curve of the resumed run compared with an uninterrupted run, which should be identical because stages are deterministic.]]
+Banks run analytics whose value fades within minutes: fraud screening, risk aggregation and regulatory reporting. Work on Internet fraud detection shows that such jobs map naturally onto distributed graph and machine learning pipelines [@zhou2021internet]. Fig. {fig:finance} sketches a deployment: transactions land in replicated object storage, scoring stages run as resilient stages on a primary cluster, and a cluster in another availability zone takes over if the first fails. Our case study runs W2 on the ULB credit-card data, with its heavily imbalanced fraud label, and injects an outage during training. The outage hit before the first stage committed, so the controller moved the job to B and reran both stages, finishing in 183 s against 138 s uninterrupted. The ROC area matched the reference at 0.9868, while the precision-recall area was 0.8428 against 0.8435. That small gap shows the training stage was not fully deterministic here, most likely because speculative execution changes task scheduling, and since Section IX assumes deterministic stages, this must be fixed before stage outputs are reused across attempts.
 
-@figure finance | Fig 26 Financial Analytics Resilience Architecture | Financial analytics resilience architecture: a fraud-scoring pipeline on two clusters in different availability zones with shared, replicated storage and the RMC-Spark controller.
+@figure finance | Fig 26 Financial Analytics Resilience Architecture | Fraud-scoring pipeline on two clusters in different zones with replicated storage and the controller.
 
 @sub Healthcare
 
-Healthcare analytics combines clinical, operational and device data, and big data analytics in healthcare is used for both treatment and health management [@batko2022use]. Two properties of this domain matter for resilience. First, some analyses support time-critical decisions, for example capacity planning during surges. Second, patient data are subject to strict jurisdictional rules, so failover must not move data to an unauthorised location. The jurisdiction-aware placement described in Section XII addresses the second property by excluding clusters through the transfer-cost term.
+Healthcare analytics combines clinical, operational and device data for treatment and service management [@batko2022use]. Two features matter for resilience: some analyses, such as capacity planning during a surge, cannot wait, and patient data may only be processed in permitted locations. The jurisdiction-aware placement of Section XII handles the second by ruling out clusters through the transfer-cost term.
 
 @sub Telecommunications
 
-Telecommunication operators analyse network and customer data at very high volume for planning, churn prediction and service assurance, and governance and architecture are central concerns in such deployments [@kastouni2020big]. Streaming analytics on network telemetry is the relevant pattern here, corresponding to workload W4; for such jobs, the streaming checkpoint in shared storage allows continuation on another cluster without data loss.
+Operators analyse network and customer data in huge volumes for planning, churn prediction and service assurance, with governance and architecture as central concerns [@kastouni2020big]. The relevant pattern is streaming telemetry, our workload W4, where a shared streaming checkpoint lets a job continue on another cluster without losing data.
 
 @sub Manufacturing
 
-Predictive maintenance combines Internet of Things data with machine learning to anticipate equipment failures [@rosati2022from]. Fig. {fig:manufacturing} shows a smart manufacturing analytics platform built on RMC-Spark, in which sensor streams feed both a streaming anomaly job and a periodic model-training job. The second case-study workload trains the W2 pipeline on the AI4I 2020 predictive maintenance dataset, which contains process measurements such as temperatures, rotational speed, torque and tool wear with a machine-failure label. [[Report: outcome under cluster outage, restored stages, and ROC AUC of resumed versus uninterrupted runs.]]
+Predictive maintenance uses IoT data and machine learning to anticipate equipment failures [@rosati2022from]. Fig. {fig:manufacturing} shows a platform in which sensor streams feed a streaming anomaly job and periodic model training. Our second case study trains W2 on the AI4I 2020 data, which records temperatures, rotational speed, torque and tool wear with a failure label. After an outage the job moved to B and finished in 131 s against 88 s; again the fault came before the first commit, so both stages reran. Here the models were identical, with a ROC area of 0.9443 and a precision-recall area of 0.6422.
 
-@figure manufacturing | Fig 27 Smart Manufacturing Analytics Platform | Smart manufacturing analytics platform: sensor ingestion, streaming anomaly detection and periodic predictive-maintenance training on resilient multi-cluster Spark.
+@figure manufacturing | Fig 27 Smart Manufacturing Analytics Platform | Sensor ingestion, streaming anomaly detection and predictive-maintenance training on resilient multi-cluster Spark.
 
 @sub Case Study Protocol
 
-Both case studies follow the same protocol. A reference run without faults trains the model and records its quality metric. A fault run injects a cluster outage on the job's cluster while the training stage is running, so that the job must be migrated and the feature stage restored from its checkpoint. The comparison then checks three properties: whether the job completed, how much work was redone, and whether the model quality of the resumed run equals that of the reference run. Equal quality is expected because both runs use the same seeded data split and the same seeded learning algorithm; a difference would indicate non-determinism in a stage and hence a violation of the resumption assumption of Section IX.
+Each case study compares a fault-free reference run with a run in which a cluster outage forces migration and, if the feature stage has committed, restoration. We check whether the job finished, how much work was repeated, and whether the model matches the reference. It should, because the data split and learner are seeded, so any difference points to a non-deterministic stage.
 
 @sub Smart Cities and Cybersecurity
 
-Smart city platforms integrate data from transport, energy and public services, and analytics architectures for smart cities and companies emphasise integration across many sources [@fugini2021big]. Spatio-temporal analytics ecosystems add resource management challenges of their own [@liang2023survey]. Cybersecurity analytics, finally, must scale with attack volume: the scalability of big data cyber security analytics systems has been studied explicitly [@ullah2021scalability], and deep learning intrusion detection has been implemented on Spark [@haggag2020implementing]. For security monitoring, losing the analytics platform during an incident is particularly costly, which makes cross-cluster failover attractive. Table {tab:usecases} summarises the use cases.
+Smart city platforms integrate transport, energy and public-service data [@fugini2021big], and spatio-temporal analytics brings its own resource management problems [@liang2023survey]. Security analytics must keep up with attack volume [@ullah2021scalability], and deep learning intrusion detection has been built on Spark [@haggag2020implementing]; losing the platform in the middle of an incident is especially costly. Table {tab:usecases} summarises the use cases.
 
 @table usecases | Industry use cases matrix | wide | 16,26,18,20,20
 | Domain | Typical analytics | Pattern (workload) | Resilience need | RMC-Spark mechanism |
@@ -39,88 +39,98 @@ Smart city platforms integrate data from transport, energy and public services, 
 
 @sub Lessons for Adoption
 
-The use cases suggest three lessons for adopting the approach. First, the largest benefit is expected for long, expensive pipelines whose results are needed by a deadline, such as model retraining or end-of-day risk aggregation; short ad hoc queries gain little because restarting them is cheap. Second, domains with data-residency constraints need placement policies before automatic failover is enabled, otherwise recovery could create a compliance incident. Third, teams must adopt the discipline of deterministic, idempotent stages; this is good practice anyway, but it requires care with random seeds, timestamps and external side effects.
+Three lessons follow. The biggest payoff comes from long, expensive pipelines due by a deadline, such as retraining or end-of-day risk aggregation, while cheap ad hoc queries gain little. Domains with residency rules need placement policies before automatic failover is enabled, or recovery itself could become a compliance incident. And stages must stay deterministic and idempotent, which takes care with seeds, timestamps and side effects.
 
 @section Business Impact Assessment
 
-The business impact of RMC-Spark can be estimated with a simple model that separates what is measured from what is organisation-specific. Let N_f be the number of failures per year that affect analytics jobs, D_base and D_rmc the mean downtime per failure without and with RMC-Spark, C_d the cost of one hour of analytics downtime, and C_extra the yearly cost of the additional capacity and operations that the second cluster and the controller require. The net annual benefit is
+We estimate impact with a model that separates measurement from organisation-specific inputs. Let N_f be the yearly failures affecting analytics, D_base and D_rmc the mean downtime per failure without and with RMC-Spark, C_d the cost of an hour of analytics downtime, and C_extra the yearly cost of the second cluster and the controller. The net annual benefit is
 
 @equation benefit
 
-D_base and D_rmc come from the experiments (Table {tab:results}); N_f, C_d and C_extra must be supplied by the adopting organisation, because they vary by orders of magnitude between, for example, a bank's fraud pipeline and a monthly reporting job. Table {tab:costbenefit} structures the assessment, and Fig. {fig:impact} presents it as a dashboard.
+D_base and D_rmc come from Table {tab:results}; N_f, C_d and C_extra vary by orders of magnitude between, say, a fraud pipeline and a monthly report, so the adopter must supply them. Table {tab:costbenefit} structures the assessment and Fig. {fig:impact} presents it as a dashboard.
 
-@figure impact | Fig 28 Business Impact Dashboard | Business impact dashboard: downtime avoided, recomputation avoided and net benefit from Eq. ({eq:benefit}) as functions of the organisation's failure rate and downtime cost. [[Generate after the experiments by inserting the measured D_base and D_rmc.]] | normal | placeholder
+@figure impact | Fig 28 Business Impact Dashboard | (a) Yearly downtime avoided against B1 and B3 by outage rate; (b) break-even downtime cost per hour for Eq. ({eq:benefit}) at three values of C_extra. | normal
 
 @table costbenefit | Cost-benefit analysis | wide | 30,22,24,24
 | Item | Symbol | Source | Value |
-| Failures per year affecting analytics | N_f | Organisation's incident history | [[organisation-specific]] |
-| Mean downtime per failure, baseline | D_base | Experiments (B1 or B3) | [[measured]] |
-| Mean downtime per failure, RMC-Spark | D_rmc | Experiments (P) | [[measured]] |
-| Cost of one hour of analytics downtime | C_d | Business owner | [[organisation-specific]] |
-| Extra capacity and operations per year | C_extra | Platform team | [[organisation-specific]] |
-| Recomputation avoided per failure | ΔW | Experiments (stage events) | [[measured]] |
-| Fault-free overhead | O | Experiments, Eq. ({eq:overhead}) | [[measured]] |
-| Net annual benefit | ΔB | Eq. ({eq:benefit}) | [[computed]] |
+| Failures per year affecting analytics | N_f | Organisation's incident history | Organisation-specific |
+| Mean downtime per failure, baseline | D_base | Experiments (B1 or B3) | 616 s for B1 (lower bound, capped by the deadline); 134 s for B3 |
+| Mean downtime per failure, RMC-Spark | D_rmc | Experiments (P) | 122 s |
+| Cost of one hour of analytics downtime | C_d | Business owner | Organisation-specific |
+| Extra capacity and operations per year | C_extra | Platform team | Organisation-specific |
+| Recomputation avoided per failure | ΔW | Experiments (stage events) | About 0 s in the ETL runs (no checkpoints written) |
+| Fault-free overhead | O | Experiments, Eq. ({eq:overhead}) | 0.00 (B2: 0.24) |
+| Net annual benefit | ΔB | Eq. ({eq:benefit}) | N_f × 0.137 h × C_d − C_extra against B1 |
 
-Three effects contribute to the benefit beyond the downtime term. Recomputation avoided frees capacity, because work that is restored instead of recomputed does not consume cluster time. Operator time is saved, because failovers no longer require someone to diagnose the outage and resubmit jobs, and the decision log shortens post-incident analysis. Finally, the second cluster is not idle capacity: under normal operation, the placement cost spreads jobs over both clusters, so the extra cost C_extra buys throughput as well as resilience. The main cost that offsets these benefits is the fault-free overhead O, which every job pays. [[Report the measured O and conclude whether, for a plausible range of N_f and C_d, the benefit is positive.]] Studies of SLA management in cloud computing show that availability commitments are usually tied to financial penalties [@qazi2024service], which gives organisations a concrete basis for C_d.
+Three further effects add to the benefit beyond downtime. Avoided recomputation frees capacity, because work that is reloaded rather than recomputed uses no cluster time. Operators save time, because nobody has to diagnose an outage and resubmit jobs by hand, and the decision log shortens the post-incident review. And the second cluster is not dead weight: in normal operation the placement cost spreads jobs over both clusters, so C_extra buys throughput as well as resilience. The offsetting cost, fault-free overhead, was zero for P, and avoided recomputation was negligible, so all the benefit came from downtime. Against the single-cluster baseline P saved at least 495 s, or 0.137 h, per outage, a lower bound because the baseline was cut off by the deadline; against scripted failover only about 12 s. The benefit is positive whenever N_f × 0.137 h × C_d exceeds C_extra, and SLA penalties give C_d a concrete basis [@qazi2024service].
 
 @sub Sensitivity of the Business Case
 
-The business case is most sensitive to the product of failure frequency and downtime cost. For organisations with rare cluster-level failures and low downtime cost, the extra capacity may not pay off on resilience grounds alone, and the approach is attractive mainly when the second cluster is needed for capacity anyway. For organisations whose analytics feed time-critical decisions, even one avoided outage per year can justify the investment. [[Insert a sensitivity table or plot of the net benefit over a range of failure rates and downtime costs using the measured D_base and D_rmc.]]
+The case depends mostly on failure frequency times downtime cost. Where cluster failures are rare and downtime cheap, the extra capacity pays off mainly if it is needed for throughput anyway; where analytics feeds time-critical decisions, one avoided outage a year can justify it. At two outages a year, 0.27 h is avoided, matching an extra cost of 1,000 or 10,000 at about 3,650 or 36,500 per hour of downtime; at twelve a year, 1.64 h with break-even costs of about 608 and 6,080; at weekly outages, 7.12 h with about 140 and 1,400. Since the baseline downtime is a lower bound these figures are conservative, and with hour-long manual recovery they fall tenfold.
 
 @section Challenges and Limitations
 
 @sub Cross-Cluster Synchronisation
 
-RMC-Spark synchronises clusters only through shared object storage and a central controller. This keeps the design simple, but it makes both the object store and the controller critical. In the testbed, the single MinIO instance and the single controller container are single points of failure; a production deployment requires replicated object storage across failure domains and several controller replicas with leader election, so that exactly one replica acts on each job. Fig. {fig:challenges} places these and the following limitations on a roadmap.
+RMC-Spark keeps clusters in step only through shared object storage and one central controller. This keeps the design simple but makes both critical: in the testbed, the single MinIO instance and the single controller container are single points of failure. Production needs storage replicated across failure domains and controller replicas with leader election, so that exactly one replica acts on each job. Fig. {fig:challenges} maps the limitations to mitigations.
 
-@figure challenges | Fig 29 Challenges and Limitations Roadmap | Challenges and limitations roadmap: current limitations of the testbed and design, the risk each one poses, and the mitigation planned in the short, medium and long term.
+@figure challenges | Fig 29 Challenges and Limitations Roadmap | Current limitations, their risks and the short-, medium- and long-term mitigations.
 
 @sub Execution Semantics
 
-Stage execution is at least once. If a migrated attempt overlaps with a late write of the old attempt, both write the same deterministic output and the commit marker is rewritten, so the result is correct but work is duplicated. Stages with external side effects, such as sending notifications or writing to a database, would need deduplication or idempotency keys. Determinism is also a requirement on the user: stages with unseeded randomness would produce different results after resumption.
+Stages execute at least once. If a migrated attempt overlaps a late write from the old one, both write the same deterministic output, so results stay correct but work is duplicated. Stages with external side effects, such as notifications or database writes, need idempotency keys, and unseeded randomness would change results after resumption.
 
 @sub Latency Overhead and Network Bottlenecks
 
-Checkpoints cost time and storage bandwidth, and materialising each stage to measure its compute time adds a pass over the data. In geo-distributed deployments, reading committed stages from a remote store adds wide-area latency and cost, which geo-distributed analytics research shows can dominate job time [@bergui2021survey, @mostafaei2022delay]. The transfer term of the placement cost is the hook for handling this, but it is not exercised in the single-host testbed.
+Checkpoints cost time and storage bandwidth, and forcing each stage to materialise adds a pass over the data. Across sites, reading committed stages from a remote store adds wide-area latency that can dominate job time [@bergui2021survey, @mostafaei2022delay]; the transfer term in the placement cost is the hook for this, but a single host never exercises it.
 
 @sub Operational Complexity and Cost
 
-Running two clusters and a controller is more complex than running one cluster, and the thresholds of the health model must be understood by the operators who rely on them. The thresholds were set by reasoning about the signals rather than tuned on data, and a sensitivity analysis is still missing. Deployment cost rises with the second cluster, although, as Section XIX notes, the second cluster also adds throughput.
+Running two clusters and a controller is clearly more complex than running one cluster, and operators must understand thresholds that we set by reasoning rather than by tuning, without a sensitivity analysis yet. The second cluster also costs money, although, as Section XIX notes, it adds throughput too.
 
 @sub Dependence on Determinism and Data Size
 
-The approach assumes deterministic stages and moderate stage outputs. Stages that call external services, use unseeded randomness or depend on wall-clock time violate the first assumption. Stages whose outputs are very large make checkpoints expensive; the adaptive policy then checkpoints rarely, and recovery approaches lineage recomputation. Very small stages, conversely, add materialisation overhead without much benefit, and a production library would merge them.
+External calls, unseeded randomness and clock dependence break determinism. Very large stage outputs make checkpoints expensive, so the adaptive policy rarely writes them and recovery ends up close to plain lineage recomputation. Very small stages, on the other hand, add materialisation overhead for little gain, and a production library would merge them.
 
 @sub Threats to Validity
 
-Internal validity is limited by the shared host: clusters compete for CPU, memory and disk, so a fault on one cluster can affect the other, and absolute timings do not transfer to other machines. External validity is limited by the workloads and data sizes, which are small compared with production analytics, and by emulated rather than real network faults. Construct validity depends on the metric definitions; using recovery criteria from published benchmarks [@vogel2024comprehensive] mitigates this risk. Conclusion validity is limited by three repetitions per cell, which is why comparisons are made over all faults of a configuration with non-parametric tests.
+Internal validity suffers because the clusters share one host's CPU, memory and disk, so a fault on one cluster can slow the other, and absolute timings do not transfer to other machines. External validity is limited by workloads and data sizes that are small next to production analytics, and by network faults that are emulated rather than real. Published recovery criteria support construct validity [@vogel2024comprehensive], and three repetitions per cell limit conclusions, which is why we pool faults and use non-parametric tests.
+
+@sub Limitations of the Executed Evaluation
+
+Calibrating on cold runs wasted 8 of 24 fault runs. The single short workload never reached the checkpoint interval, so resumption went unexercised and H3 and H4 remain untested. Partitions, master kills and gray failures were implemented but not measured, A1 was not run, and warm-up made three-run overheads fragile. Each of these has a direct remedy in the full matrix, which Section XXI lists.
 
 @section Future Research Directions
 
-Fig. {fig:roadmap} outlines a research roadmap. The first direction is predictive recovery. The health model is reactive, but it has a simple interface: any model that outputs an anomaly level per cluster can contribute a signal. Failure predictors trained on cluster traces [@gao2020task, @asmawi2022cloud] and workload forecasting models [@saxena2023performance] could add a predicted-failure signal, allowing the controller to checkpoint or migrate before the failure, as proactive cloud schedulers already do [@alahmad2021proactive].
+Fig. {fig:roadmap} lays out a research roadmap with four main directions. The first is predictive recovery. The health model only reacts, but any model that outputs a per-cluster anomaly level can add a signal, so failure predictors trained on cluster traces [@gao2020task, @asmawi2022cloud] and workload forecasts [@saxena2023performance] could let the controller checkpoint or migrate before a failure, as proactive cloud schedulers already do [@alahmad2021proactive].
 
-@figure roadmap | Fig 30 Future Research Roadmap | Future research roadmap: predictive recovery, federated multi-cluster management, Kubernetes and serverless back-ends, and agentic, explainable orchestration.
+@figure roadmap | Fig 30 Future Research Roadmap | Predictive recovery, federated management, new back-ends and agentic, explainable orchestration.
 
-The second direction is federated cluster management across organisations and clouds. Federated learning shows how models can be trained across sites without moving raw data [@imteaj2021survey], and distributed machine learning systems face similar placement problems [@verbraeken2020survey]. A federated RMC-Spark would place and move jobs across administrative domains under data-residency constraints, extending the jurisdiction-aware placement of Section XII.
+The second direction is federated cluster management across organisations and clouds. Federated learning trains models across sites without moving raw data [@imteaj2021survey], distributed ML faces similar placement problems [@verbraeken2020survey], and a federated RMC-Spark would extend Section XII's residency-aware placement across administrative domains. The third is new execution back-ends: Spark on Kubernetes and serverless analytics change how drivers and executors start [@schleiersmith2021what, @hassan2021survey], and the controller's submit and stop operations could target them without changing the decision logic; a Kubernetes back-end is the most obvious next addition to the experimental matrix.
 
-The third direction is new execution back-ends. Kubernetes-hosted Spark and serverless analytics change how drivers and executors are started [@schleiersmith2021what, @hassan2021survey], and the controller's submit and stop operations could target them without changing the decision logic. Evaluating a Kubernetes back-end is the most immediate extension of the experimental matrix.
+The fourth is agentic orchestration. Language models are being tried for incident analysis and remediation [@zhang2025survey], and MLOps and AIOps aim to close the loop between operations and development [@diazdearcaya2023joint]. An advisory agent could read the decision log, suggest configuration changes or explain incidents in plain language, while the deterministic controller keeps control of every safety-critical action, as Fig. {fig:nextgen} sketches.
 
-The fourth direction is agentic and self-healing orchestration. Large language models are being explored for AIOps tasks such as incident analysis and remediation [@zhang2025survey], and the joint view of MLOps and AIOps emphasises closing the loop between operations and model development [@diazdearcaya2023joint]. An agent could read the decision log, propose configuration changes, or explain incidents in natural language, while the deterministic controller keeps responsibility for safety-critical actions. Fig. {fig:nextgen} sketches such a next-generation architecture.
+@figure nextgen | Fig 31 Next-Generation Resilient Analytics Architecture | Predictive signals and an advisory agent around the deterministic controller, with federated clusters and several back-ends.
 
-@figure nextgen | Fig 31 Next-Generation Resilient Analytics Architecture | Next-generation resilient analytics architecture: predictive signals and an advisory agent added to the deterministic, explainable control loop, with federated clusters and multiple execution back-ends.
+Other directions concern the controller itself. Learned checkpoint policies could handle failures that are not memoryless, for example by conditioning on time of day or recent anomaly scores, as convergence-aware checkpointing does for training [@li2024convergence]. Formal verification could prove that no progressing job is ever moved. Price or energy could enter the placement cost, as multi-cloud scheduling already does [@zhu2021task, @tomarchio2020cloud]. Automatic calibration of thresholds and weights from incident data would reduce the reliance on expert judgement noted in Section XI.
 
-Further directions concern the controller itself. Learned checkpoint policies could replace the analytical interval when failures are not memoryless, for instance by conditioning on time of day or on recent anomaly scores, similar to convergence-aware checkpointing for training jobs [@li2024convergence]. Formal verification of the state machine and recovery rules would provide guarantees that testing cannot, for example that no job is ever migrated while making progress. Energy and cost awareness could be added to the placement cost, so that failover prefers clusters with spare capacity or lower price, which multi-cloud scheduling research already considers [@zhu2021task, @tomarchio2020cloud]. Finally, sensitivity analysis of thresholds and weights, and their automatic calibration from incident data, would reduce the dependence on expert judgement noted in Section XI.
+@sub Completing the Evaluation
+
+The most pressing step is to finish the evaluation this report has started. The full matrix should calibrate the fault time on warm runs, after a discarded warm-up repetition, and use at least ten repetitions per cell. It should include W2 and W3 so that resumption and H4 can be tested, and add master kills for H3, partitions for H1 and A1 for the policy's own effect. Running it on two physical hosts or cloud zones would remove the shared-host threats to validity.
+
+@sub Towards Production
+
+Production needs replicated, leader-elected controllers with persistent job state, replicated storage, the designed security controls switched on with their overhead measured, and thresholds calibrated on real incidents, which would also show how often cluster failures actually occur, the number that decides the business case.
 
 @section Conclusion
 
-This paper addressed a gap between the fault tolerance that Apache Spark provides inside a cluster and the availability that analytics consumers expect when a whole cluster fails. It presented RMC-Spark, which combines resumable data science program stages with a cross-cluster resilience controller. The rds library makes PySpark stages idempotent and resumable through a commit-marker protocol on shared object storage and checkpoints them adaptively using the Young and Daly optimum interval with an online MTBF estimate. The controller scores cluster health from five explainable signals, detects failures with a hysteresis state machine, migrates only jobs that stopped making progress, places jobs with an interpretable cost function, and records every decision with its cause. Fig. {fig:contribution} summarises how these contributions relate to the problems identified in Section II.
+We set out to narrow the gap between the fault tolerance Spark offers inside a cluster and the availability users expect when a whole cluster fails. RMC-Spark pairs resumable program stages with a cross-cluster controller. The rds library makes PySpark stages idempotent and resumable through commit markers and checkpoints them at the Young and Daly interval using an online MTBF estimate. The controller scores health from five explainable signals, detects failures with a hysteresis state machine, moves only jobs that stopped progressing, places them with a readable cost function and logs every decision with its cause. Fig. {fig:contribution} maps these contributions to the problems of Section II.
 
-@figure contribution | Fig 32 Research Contribution Framework | Research contribution framework: problems identified in Section II, the components that address them, and the evidence used to evaluate each one.
+@figure contribution | Fig 32 Research Contribution Framework | Problems from Section II, the components addressing them and the evidence for each.
 
-The implementation is complete and openly available, its decision logic is verified by automated tests including a simulated cluster outage, and a reproducible evaluation with nine fault types, four workloads and five configurations has been specified together with its statistical analysis. [[Replace this sentence with the two or three main measured findings and whether hypotheses H1 to H5 were supported.]] For practitioners, the main implication is that cross-cluster resilience for analytics does not require changes to the engine: a thin programming library and an explainable controller are sufficient to turn cluster outages from failed jobs into automatic recoveries, at a cost that each organisation can weigh with the model of Section XIX. Future work will add predictive signals, Kubernetes and federated back-ends, and replicated control and storage planes, and will evaluate the approach at production scale.
+In 36 runs, 28 of them valid, RMC-Spark detected full outages in about 8 s and finished every valid run, while the single-cluster configurations failed every one (H1 supported, p = 0.048). Detection was 23 s faster than a 30 s timeout, but because no checkpoints were written for jobs of about 55 s, downtime stayed close to naive failover; fault-free overhead was zero against 24 per cent for fixed checkpointing. Both case studies recovered with equal or nearly equal model quality. H3, H4, stage resumption on long workloads and statistical significance still await the full matrix. The message for practitioners is that, at least on our two-cluster testbed, cross-cluster resilience for analytics needed no changes to the engine: a thin programming library and an explainable controller are enough to turn a cluster outage from a failed job into an automatic recovery, at a cost each organisation can weigh with the model of Section XIX.
 
-Several lessons emerged from designing and implementing the system. Placing drivers outside the clusters was the single most important decision, because it made the difference between a job that dies with its cluster and a job that can be moved. Distinguishing degradation from failure, and failure from a stopped job, avoided the main weakness of timeout-based high availability, namely restarting work that would have finished. Making every decision explainable required no sophisticated machinery once the models were chosen to be additive, which suggests that explainability is often a design choice rather than an afterthought. Finally, expressing the experiments as code, with seeded data and scripted faults, made the evaluation reproducible by anyone with a workstation and Docker, which is valuable for teaching as well as for research.
+Building the system taught us three things. Running the drivers outside the clusters was the most important single decision, the difference between a job that dies with its cluster and one that can be moved. Separating degradation from failure, and a failed cluster from a stopped job, avoided the main weakness of timeout-based high availability, restarting work that would have finished. And once the models were additive, explaining every decision took no extra machinery, which suggests that explainability is a design choice rather than an afterthought. Next we plan predictive signals, Kubernetes and federated back-ends, and replicated control and storage.
 
 @unnumbered Data Availability
 
@@ -130,15 +140,15 @@ The synthetic datasets analysed in this study are generated deterministically by
 
 @sub Spark and Controller Configuration
 
-The complete configuration is part of the repository: docker-compose.yml defines the testbed, docker/spark-defaults.conf the Spark settings, configs/clusters.yaml all controller thresholds and weights, and experiments/configs/full.yaml the experiment matrix. The values used in this paper are those of Tables {tab:monitoring}, {tab:indicators} and {tab:config}.
+The repository holds the testbed (docker-compose.yml), the Spark settings (docker/spark-defaults.conf), every controller threshold and weight (configs/clusters.yaml) and the executed and full matrices (experiments/configs); the values used here are those of Tables {tab:monitoring}, {tab:indicators} and {tab:config}.
 
 @sub Reproduction Steps
 
-The experiments can be reproduced with the following steps, which are described in detail in the repository README: build the image and start the testbed with Docker Compose; generate the datasets with the data generator; run the smoke experiment to validate the setup; calibrate the fault injection times to the clean runtimes of the reproducing machine; run the full matrix; and generate all tables and figures with the analysis script. The 56 automated tests run without Docker or Spark and verify the policy, detection, placement, reliability and recovery logic.
+Following the README, start the testbed with Docker Compose, generate the data, run the smoke test, calibrate fault times on the reproducing machine, run scripts/run_minimum.ps1 and regenerate all tables and figures. The raw results in results/ let the analysis be checked without the testbed, and the 56 tests need neither Docker nor Spark.
 
 @sub Recovery Rules
 
-The recovery rules applied by the controller in each recovery mode are listed in Table {tab:rules}.
+Table {tab:rules} lists the recovery rules the controller applies in each mode.
 
 @table rules | Recovery rules per mode | wide | 34,22,22,22
 | Situation | none (B1, B2) | naive (B3) | smart (RMC-Spark) |
@@ -148,3 +158,6 @@ The recovery rules applied by the controller in each recovery mode are listed in
 | Cluster failed, job stalled 10 s or more | Job hangs until deadline | Restarted after 30 s timeout | Migrated to argmin J |
 | No eligible cluster | Not applicable | Job waits | Job waits, then resumes |
 
+@sub Executed Experiment and Control Loop
+
+Calibration (experiments/calibrate.py) wrote the 95 s fault time and 716 s deadline into the configuration; the runner then executed the 36 runs in shuffled order with health checks between them. The raw files are runs.csv, decisions.jsonl with 529 decisions, cluster_timeseries.csv and one event file per job. Every 2 s the control loop refreshes driver progress, probes masters and computes the health score of Eq. ({eq:health}), updates the state machines, applies the rules of Table {tab:rules} and exports metrics to Prometheus.

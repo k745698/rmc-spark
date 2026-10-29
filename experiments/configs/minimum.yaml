@@ -1,0 +1,31 @@
+# timing fields set by experiments/calibrate.py from measured clean runtimes
+name: minimum
+output_dir: results/raw/minimum
+repetitions: 3
+seed: 2026
+transient_duration_s: 60
+cooldown_s: 5
+systems:
+  B1_vanilla:
+    mode: none
+    policy: never
+  B2_fixed_ckpt:
+    mode: none
+    policy: always
+  B3_naive_ha:
+    mode: naive
+    policy: never
+  P_rmc:
+    mode: smart
+    policy: adaptive
+    conf:
+      spark.speculation: 'true'
+workloads:
+  etl_taxi:
+    deadline_s: 716
+    fault_at_s: 95
+    expected_runtime_s: 239
+faults:
+- none
+- executor_kill
+- cluster_outage

@@ -1,0 +1,10 @@
+1 systems x 2 workloads x 2 faults x 1 reps = 4 runs, roughly 0.1 h of job time (+ recovery/cool-down)
+[1/4] rep=0 system=P_rmc workload=case_maintenance fault=cluster_outage
+    -> SUCCEEDED in 130.601 s, attempts=2, clusters=A>B
+[2/4] rep=0 system=P_rmc workload=case_fraud fault=cluster_outage
+    -> SUCCEEDED in 183.369 s, attempts=2, clusters=A>B
+[3/4] rep=0 system=P_rmc workload=case_fraud fault=none
+    -> SUCCEEDED in 138.122 s, attempts=1, clusters=A
+[4/4] rep=0 system=P_rmc workload=case_maintenance fault=none
+    -> SUCCEEDED in 88.123 s, attempts=1, clusters=A
+done: results/raw/cases/runs.csv

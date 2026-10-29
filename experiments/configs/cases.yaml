@@ -1,0 +1,25 @@
+# timing fields set by experiments/calibrate.py from measured clean runtimes
+name: cases
+output_dir: results/raw/cases
+repetitions: 1
+seed: 7
+transient_duration_s: 60
+cooldown_s: 5
+systems:
+  P_rmc:
+    mode: smart
+    policy: always
+    conf:
+      spark.speculation: 'true'
+workloads:
+  case_fraud:
+    deadline_s: 372
+    fault_at_s: 50
+    expected_runtime_s: 124
+  case_maintenance:
+    deadline_s: 204
+    fault_at_s: 27
+    expected_runtime_s: 68
+faults:
+- none
+- cluster_outage

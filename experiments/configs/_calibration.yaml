@@ -1,0 +1,21 @@
+name: calibration
+output_dir: results/raw/calibration
+repetitions: 1
+seed: 1
+cooldown_s: 3
+transient_duration_s: 60
+systems:
+  B1_vanilla:
+    mode: none
+    policy: never
+workloads:
+  case_fraud:
+    deadline_s: 900
+    fault_at_s: 99999
+    expected_runtime_s: 100
+  case_maintenance:
+    deadline_s: 900
+    fault_at_s: 99999
+    expected_runtime_s: 60
+faults:
+- none

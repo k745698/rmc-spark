@@ -1,0 +1,1392 @@
+{
+ "n_runs": 36,
+ "n_valid": 28,
+ "n_fault_configured": 24,
+ "n_fault_injected": 16,
+ "n_not_triggered": 8,
+ "table12": {
+  "B1_vanilla": {
+   "fault_runs": 3,
+   "success_rate": 0.3333333333333333,
+   "availability_mean": 0.2852958484475201,
+   "availability_ci_low": 0.1376365016033864,
+   "availability_ci_high": 0.5751122266134723,
+   "median_downtime_s": 614.0550000667572,
+   "mean_recomputed_s": 0.0,
+   "clean_overhead_vs_B1": 0.0,
+   "p_downtime_vs_B1": NaN,
+   "cliffs_delta_vs_B1": NaN,
+   "effect": NaN
+  },
+  "B2_fixed_ckpt": {
+   "fault_runs": 6,
+   "success_rate": 0.5,
+   "availability_mean": 0.4606715058570432,
+   "availability_ci_low": 0.2270402491933011,
+   "availability_ci_high": 0.7167112462324031,
+   "median_downtime_s": 336.2250000534058,
+   "mean_recomputed_s": 0.0,
+   "clean_overhead_vs_B1": 0.2389756171700283,
+   "p_downtime_vs_B1": 0.9047619047619048,
+   "cliffs_delta_vs_B1": -0.1111111111111111,
+   "effect": "negligible"
+  },
+  "B3_naive_ha": {
+   "fault_runs": 2,
+   "success_rate": 1.0,
+   "availability_mean": 0.5699692498789513,
+   "availability_ci_low": 0.4427161132576168,
+   "availability_ci_high": 0.6972223865002858,
+   "median_downtime_s": 89.8195,
+   "mean_recomputed_s": 31.113518953323364,
+   "clean_overhead_vs_B1": 0.1518770219510606,
+   "p_downtime_vs_B1": 0.4,
+   "cliffs_delta_vs_B1": -0.6666666666666666,
+   "effect": "large"
+  },
+  "P_rmc": {
+   "fault_runs": 5,
+   "success_rate": 1.0,
+   "availability_mean": 0.5653397615380523,
+   "availability_ci_low": 0.4692086989518988,
+   "availability_ci_high": 0.6572715740226712,
+   "median_downtime_s": 52.044,
+   "mean_recomputed_s": 22.286562490463258,
+   "clean_overhead_vs_B1": -0.0002388344877,
+   "p_downtime_vs_B1": 0.1428571428571428,
+   "cliffs_delta_vs_B1": -0.7333333333333333,
+   "effect": "large"
+  }
+ },
+ "experiment": {
+  "name": "minimum",
+  "output_dir": "results/raw/minimum",
+  "repetitions": 3,
+  "seed": 2026,
+  "transient_duration_s": 60,
+  "cooldown_s": 5,
+  "systems": {
+   "B1_vanilla": {
+    "mode": "none",
+    "policy": "never"
+   },
+   "B2_fixed_ckpt": {
+    "mode": "none",
+    "policy": "always"
+   },
+   "B3_naive_ha": {
+    "mode": "naive",
+    "policy": "never"
+   },
+   "P_rmc": {
+    "mode": "smart",
+    "policy": "adaptive",
+    "conf": {
+     "spark.speculation": "true"
+    }
+   }
+  },
+  "workloads": {
+   "etl_taxi": {
+    "deadline_s": 716,
+    "fault_at_s": 95,
+    "expected_runtime_s": 239
+   }
+  },
+  "faults": [
+   "none",
+   "executor_kill",
+   "cluster_outage"
+  ]
+ },
+ "clean_median_s": {
+  "B1_vanilla": 92.1,
+  "B2_fixed_ckpt": 114.1,
+  "B3_naive_ha": 106.1,
+  "P_rmc": 92.1
+ },
+ "cells": {
+  "B1_vanilla|cluster_outage": {
+   "system": "B1_vanilla",
+   "fault": "cluster_outage",
+   "n": 2,
+   "succeeded": 0,
+   "median_duration_s": 716.9,
+   "median_downtime_s": 616.3,
+   "median_detect_s": 8.1,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 0.14,
+   "durations": [
+    716.6,
+    717.2
+   ]
+  },
+  "B1_vanilla|executor_kill": {
+   "system": "B1_vanilla",
+   "fault": "executor_kill",
+   "n": 1,
+   "succeeded": 1,
+   "median_duration_s": 160.2,
+   "median_downtime_s": 68.1,
+   "median_detect_s": null,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 0.575,
+   "durations": [
+    160.2
+   ]
+  },
+  "B1_vanilla|none": {
+   "system": "B1_vanilla",
+   "fault": "none",
+   "n": 3,
+   "succeeded": 3,
+   "median_duration_s": 92.1,
+   "median_downtime_s": 0.0,
+   "median_detect_s": null,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 1.0,
+   "durations": [
+    298.6,
+    92.1,
+    92.1
+   ]
+  },
+  "B2_fixed_ckpt|cluster_outage": {
+   "system": "B2_fixed_ckpt",
+   "fault": "cluster_outage",
+   "n": 3,
+   "succeeded": 0,
+   "median_duration_s": 717.9,
+   "median_downtime_s": 619.8,
+   "median_detect_s": 7.2,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 0.137,
+   "durations": [
+    717.9,
+    719.2,
+    716.4
+   ]
+  },
+  "B2_fixed_ckpt|executor_kill": {
+   "system": "B2_fixed_ckpt",
+   "fault": "executor_kill",
+   "n": 3,
+   "succeeded": 3,
+   "median_duration_s": 148.2,
+   "median_downtime_s": 34.0,
+   "median_detect_s": null,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 0.785,
+   "durations": [
+    168.2,
+    148.2,
+    126.1
+   ]
+  },
+  "B2_fixed_ckpt|none": {
+   "system": "B2_fixed_ckpt",
+   "fault": "none",
+   "n": 3,
+   "succeeded": 3,
+   "median_duration_s": 114.1,
+   "median_downtime_s": 0.0,
+   "median_detect_s": null,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 1.0,
+   "durations": [
+    184.2,
+    112.1,
+    114.1
+   ]
+  },
+  "B3_naive_ha|cluster_outage": {
+   "system": "B3_naive_ha",
+   "fault": "cluster_outage",
+   "n": 1,
+   "succeeded": 1,
+   "median_duration_s": 239.7,
+   "median_downtime_s": 133.6,
+   "median_detect_s": 30.7,
+   "median_action_s": 30.7,
+   "mean_recomputed_s": 62.2,
+   "mean_availability": 0.443,
+   "durations": [
+    239.7
+   ]
+  },
+  "B3_naive_ha|executor_kill": {
+   "system": "B3_naive_ha",
+   "fault": "executor_kill",
+   "n": 1,
+   "succeeded": 1,
+   "median_duration_s": 152.2,
+   "median_downtime_s": 46.1,
+   "median_detect_s": null,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 0.697,
+   "durations": [
+    152.2
+   ]
+  },
+  "B3_naive_ha|none": {
+   "system": "B3_naive_ha",
+   "fault": "none",
+   "n": 3,
+   "succeeded": 3,
+   "median_duration_s": 106.1,
+   "median_downtime_s": 0.0,
+   "median_detect_s": null,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 1.0,
+   "durations": [
+    264.5,
+    106.1,
+    90.1
+   ]
+  },
+  "P_rmc|cluster_outage": {
+   "system": "P_rmc",
+   "fault": "cluster_outage",
+   "n": 2,
+   "succeeded": 2,
+   "median_duration_s": 213.6,
+   "median_downtime_s": 121.5,
+   "median_detect_s": 7.6,
+   "median_action_s": 9.2,
+   "mean_recomputed_s": 55.7,
+   "mean_availability": 0.432,
+   "durations": [
+    223.3,
+    203.9
+   ]
+  },
+  "P_rmc|executor_kill": {
+   "system": "P_rmc",
+   "fault": "executor_kill",
+   "n": 3,
+   "succeeded": 3,
+   "median_duration_s": 140.1,
+   "median_downtime_s": 48.0,
+   "median_detect_s": null,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 0.654,
+   "durations": [
+    138.2,
+    144.1,
+    140.1
+   ]
+  },
+  "P_rmc|none": {
+   "system": "P_rmc",
+   "fault": "none",
+   "n": 3,
+   "succeeded": 3,
+   "median_duration_s": 92.1,
+   "median_downtime_s": 0.0,
+   "median_detect_s": null,
+   "median_action_s": null,
+   "mean_recomputed_s": 0.0,
+   "mean_availability": 1.0,
+   "durations": [
+    126.2,
+    90.1,
+    92.1
+   ]
+  }
+ },
+ "systems": {
+  "B1_vanilla": {
+   "label": "B1 Vanilla Spark",
+   "clean_median_s": 92.1,
+   "clean_overhead_vs_B1": 0.0,
+   "clean_runs": 3,
+   "fault_runs": 3,
+   "fault_success": 1,
+   "fault_success_rate": 0.333,
+   "mean_availability": 0.285,
+   "median_downtime_s": 614.1,
+   "outage_runs": 2,
+   "outage_success": 0,
+   "outage_max_downtime_s": 618.5,
+   "outage_mean_recomputed_s": 0.0,
+   "checkpoints_per_clean_run": 0.0
+  },
+  "B2_fixed_ckpt": {
+   "label": "B2 Fixed checkpoint",
+   "clean_median_s": 114.1,
+   "clean_overhead_vs_B1": 0.239,
+   "clean_runs": 3,
+   "fault_runs": 6,
+   "fault_success": 3,
+   "fault_success_rate": 0.5,
+   "mean_availability": 0.461,
+   "median_downtime_s": 336.2,
+   "outage_runs": 3,
+   "outage_success": 0,
+   "outage_max_downtime_s": 620.9,
+   "outage_mean_recomputed_s": 0.0,
+   "checkpoints_per_clean_run": 4.0
+  },
+  "B3_naive_ha": {
+   "label": "B3 Naive HA",
+   "clean_median_s": 106.1,
+   "clean_overhead_vs_B1": 0.152,
+   "clean_runs": 3,
+   "fault_runs": 2,
+   "fault_success": 2,
+   "fault_success_rate": 1.0,
+   "mean_availability": 0.57,
+   "median_downtime_s": 89.8,
+   "outage_runs": 1,
+   "outage_success": 1,
+   "outage_max_downtime_s": 133.6,
+   "outage_mean_recomputed_s": 62.2,
+   "checkpoints_per_clean_run": 0.0
+  },
+  "P_rmc": {
+   "label": "P RMC-Spark",
+   "clean_median_s": 92.1,
+   "clean_overhead_vs_B1": -0.0,
+   "clean_runs": 3,
+   "fault_runs": 5,
+   "fault_success": 5,
+   "fault_success_rate": 1.0,
+   "mean_availability": 0.565,
+   "median_downtime_s": 52.0,
+   "outage_runs": 2,
+   "outage_success": 2,
+   "outage_max_downtime_s": 131.2,
+   "outage_mean_recomputed_s": 55.7,
+   "checkpoints_per_clean_run": 0.0
+  }
+ },
+ "fisher_p_failover_capable_vs_not": 0.0179,
+ "fisher_p_P_vs_B1B2": 0.0476,
+ "stage_median_s": {
+  "clean": 23.5,
+  "enrich": 10.6,
+  "hourly_agg": 14.5,
+  "zone_rank": 6.1
+ },
+ "utilisation": {
+  "A": 0.859,
+  "B": 0.036
+ },
+ "fig23": {
+  "job": "P_rmc-etl_taxi-cluster_outage-r0-cd57de",
+  "t_fault": 99.3,
+  "t_action": 109.8,
+  "t_end": 223.3,
+  "series": {
+   "A": [
+    [
+     -0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     2.0,
+     0.0,
+     0.9641
+    ],
+    [
+     4.0,
+     0.0,
+     0.995
+    ],
+    [
+     6.0,
+     0.0,
+     0.9925
+    ],
+    [
+     8.0,
+     0.0,
+     0.99
+    ],
+    [
+     10.0,
+     1.0,
+     0.9875
+    ],
+    [
+     12.0,
+     1.0,
+     0.9686
+    ],
+    [
+     14.0,
+     1.0,
+     0.9623
+    ],
+    [
+     16.0,
+     1.0,
+     1.0
+    ],
+    [
+     18.0,
+     1.0,
+     0.9975
+    ],
+    [
+     20.0,
+     1.0,
+     0.995
+    ],
+    [
+     22.0,
+     1.0,
+     0.9925
+    ],
+    [
+     24.0,
+     1.0,
+     0.99
+    ],
+    [
+     26.0,
+     1.0,
+     0.9875
+    ],
+    [
+     28.0,
+     1.0,
+     0.985
+    ],
+    [
+     30.0,
+     1.0,
+     0.9825
+    ],
+    [
+     32.0,
+     1.0,
+     1.0
+    ],
+    [
+     34.0,
+     1.0,
+     0.9975
+    ],
+    [
+     36.0,
+     1.0,
+     0.995
+    ],
+    [
+     38.1,
+     1.0,
+     0.9925
+    ],
+    [
+     40.1,
+     1.0,
+     0.99
+    ],
+    [
+     42.1,
+     1.0,
+     0.9875
+    ],
+    [
+     44.1,
+     1.0,
+     0.985
+    ],
+    [
+     46.1,
+     1.0,
+     0.9825
+    ],
+    [
+     48.1,
+     1.0,
+     0.98
+    ],
+    [
+     50.1,
+     1.0,
+     1.0
+    ],
+    [
+     52.1,
+     1.0,
+     0.9625
+    ],
+    [
+     54.1,
+     1.0,
+     1.0
+    ],
+    [
+     56.1,
+     1.0,
+     0.9975
+    ],
+    [
+     58.1,
+     1.0,
+     1.0
+    ],
+    [
+     60.1,
+     1.0,
+     1.0
+    ],
+    [
+     62.1,
+     1.0,
+     0.9505
+    ],
+    [
+     64.1,
+     1.0,
+     0.9975
+    ],
+    [
+     66.1,
+     1.0,
+     0.9972
+    ],
+    [
+     68.1,
+     1.0,
+     0.9975
+    ],
+    [
+     70.1,
+     1.0,
+     0.995
+    ],
+    [
+     72.1,
+     1.0,
+     0.9925
+    ],
+    [
+     74.1,
+     1.0,
+     0.9
+    ],
+    [
+     76.1,
+     1.0,
+     1.0
+    ],
+    [
+     78.1,
+     1.0,
+     0.9975
+    ],
+    [
+     80.1,
+     1.0,
+     0.8998
+    ],
+    [
+     82.1,
+     1.0,
+     0.9925
+    ],
+    [
+     84.1,
+     1.0,
+     0.99
+    ],
+    [
+     86.1,
+     1.0,
+     0.9875
+    ],
+    [
+     88.1,
+     1.0,
+     1.0
+    ],
+    [
+     90.1,
+     1.0,
+     0.9413
+    ],
+    [
+     92.1,
+     1.0,
+     1.0
+    ],
+    [
+     94.1,
+     1.0,
+     0.9
+    ],
+    [
+     96.1,
+     1.0,
+     1.0
+    ],
+    [
+     99.3,
+     0.0,
+     0.3
+    ],
+    [
+     103.4,
+     0.0,
+     0.2699
+    ],
+    [
+     106.6,
+     0.0,
+     0.2409
+    ],
+    [
+     109.8,
+     0.0,
+     0.2369
+    ],
+    [
+     113.5,
+     0.0,
+     0.3
+    ],
+    [
+     116.7,
+     0.0,
+     0.3
+    ],
+    [
+     119.9,
+     0.0,
+     0.3
+    ],
+    [
+     123.1,
+     0.0,
+     0.3
+    ],
+    [
+     127.9,
+     0.0,
+     0.3
+    ],
+    [
+     132.2,
+     0.0,
+     0.3
+    ],
+    [
+     135.9,
+     0.0,
+     0.3
+    ],
+    [
+     139.2,
+     0.0,
+     0.3
+    ],
+    [
+     142.4,
+     0.0,
+     0.3
+    ],
+    [
+     145.6,
+     0.0,
+     0.3
+    ],
+    [
+     148.8,
+     0.0,
+     0.3
+    ],
+    [
+     152.0,
+     0.0,
+     0.3
+    ],
+    [
+     155.2,
+     0.0,
+     0.3
+    ],
+    [
+     158.5,
+     0.0,
+     0.3
+    ],
+    [
+     161.8,
+     0.0,
+     0.3
+    ],
+    [
+     165.0,
+     0.0,
+     0.3
+    ],
+    [
+     168.3,
+     0.0,
+     0.3
+    ],
+    [
+     171.4,
+     0.0,
+     0.3
+    ],
+    [
+     174.7,
+     0.0,
+     0.3
+    ],
+    [
+     178.1,
+     0.0,
+     0.3
+    ],
+    [
+     181.3,
+     0.0,
+     0.3
+    ],
+    [
+     184.5,
+     0.0,
+     0.3
+    ],
+    [
+     187.8,
+     0.0,
+     0.3
+    ],
+    [
+     191.0,
+     0.0,
+     0.3
+    ],
+    [
+     194.2,
+     0.0,
+     0.3
+    ],
+    [
+     197.4,
+     0.0,
+     0.3
+    ],
+    [
+     200.6,
+     0.0,
+     0.3
+    ],
+    [
+     203.9,
+     0.0,
+     0.3
+    ],
+    [
+     207.1,
+     0.0,
+     0.3
+    ],
+    [
+     210.3,
+     0.0,
+     0.3
+    ],
+    [
+     213.6,
+     0.0,
+     0.3
+    ],
+    [
+     216.8,
+     0.0,
+     0.3
+    ],
+    [
+     220.0,
+     0.0,
+     0.3
+    ],
+    [
+     223.3,
+     0.0,
+     0.3
+    ]
+   ],
+   "B": [
+    [
+     -0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     2.0,
+     0.0,
+     1.0
+    ],
+    [
+     4.0,
+     0.0,
+     1.0
+    ],
+    [
+     6.0,
+     0.0,
+     1.0
+    ],
+    [
+     8.0,
+     0.0,
+     1.0
+    ],
+    [
+     10.0,
+     0.0,
+     0.9216
+    ],
+    [
+     12.0,
+     0.0,
+     1.0
+    ],
+    [
+     14.0,
+     0.0,
+     1.0
+    ],
+    [
+     16.0,
+     0.0,
+     0.9777
+    ],
+    [
+     18.0,
+     0.0,
+     0.9895
+    ],
+    [
+     20.0,
+     0.0,
+     1.0
+    ],
+    [
+     22.0,
+     0.0,
+     1.0
+    ],
+    [
+     24.0,
+     0.0,
+     1.0
+    ],
+    [
+     26.0,
+     0.0,
+     1.0
+    ],
+    [
+     28.0,
+     0.0,
+     1.0
+    ],
+    [
+     30.0,
+     0.0,
+     1.0
+    ],
+    [
+     32.0,
+     0.0,
+     1.0
+    ],
+    [
+     34.0,
+     0.0,
+     1.0
+    ],
+    [
+     36.0,
+     0.0,
+     1.0
+    ],
+    [
+     38.1,
+     0.0,
+     1.0
+    ],
+    [
+     40.1,
+     0.0,
+     1.0
+    ],
+    [
+     42.1,
+     0.0,
+     1.0
+    ],
+    [
+     44.1,
+     0.0,
+     1.0
+    ],
+    [
+     46.1,
+     0.0,
+     1.0
+    ],
+    [
+     48.1,
+     0.0,
+     1.0
+    ],
+    [
+     50.1,
+     0.0,
+     1.0
+    ],
+    [
+     52.1,
+     0.0,
+     1.0
+    ],
+    [
+     54.1,
+     0.0,
+     1.0
+    ],
+    [
+     56.1,
+     0.0,
+     1.0
+    ],
+    [
+     58.1,
+     0.0,
+     1.0
+    ],
+    [
+     60.1,
+     0.0,
+     1.0
+    ],
+    [
+     62.1,
+     0.0,
+     1.0
+    ],
+    [
+     64.1,
+     0.0,
+     1.0
+    ],
+    [
+     66.1,
+     0.0,
+     1.0
+    ],
+    [
+     68.1,
+     0.0,
+     1.0
+    ],
+    [
+     70.1,
+     0.0,
+     1.0
+    ],
+    [
+     72.1,
+     0.0,
+     1.0
+    ],
+    [
+     74.1,
+     0.0,
+     1.0
+    ],
+    [
+     76.1,
+     0.0,
+     0.9102
+    ],
+    [
+     78.1,
+     0.0,
+     1.0
+    ],
+    [
+     80.1,
+     0.0,
+     1.0
+    ],
+    [
+     82.1,
+     0.0,
+     1.0
+    ],
+    [
+     84.1,
+     0.0,
+     1.0
+    ],
+    [
+     86.1,
+     0.0,
+     1.0
+    ],
+    [
+     88.1,
+     0.0,
+     1.0
+    ],
+    [
+     90.1,
+     0.0,
+     1.0
+    ],
+    [
+     92.1,
+     0.0,
+     1.0
+    ],
+    [
+     94.1,
+     0.0,
+     0.9637
+    ],
+    [
+     96.1,
+     0.0,
+     1.0
+    ],
+    [
+     99.3,
+     0.0,
+     1.0
+    ],
+    [
+     103.4,
+     0.0,
+     1.0
+    ],
+    [
+     106.6,
+     0.0,
+     1.0
+    ],
+    [
+     109.8,
+     0.0,
+     1.0
+    ],
+    [
+     113.5,
+     0.0,
+     0.9953
+    ],
+    [
+     116.7,
+     0.0,
+     0.9913
+    ],
+    [
+     119.9,
+     1.0,
+     0.9874
+    ],
+    [
+     123.1,
+     1.0,
+     0.9521
+    ],
+    [
+     127.9,
+     1.0,
+     0.9272
+    ],
+    [
+     132.2,
+     1.0,
+     1.0
+    ],
+    [
+     135.9,
+     1.0,
+     0.9953
+    ],
+    [
+     139.2,
+     1.0,
+     0.9912
+    ],
+    [
+     142.4,
+     1.0,
+     0.9872
+    ],
+    [
+     145.6,
+     1.0,
+     1.0
+    ],
+    [
+     148.8,
+     1.0,
+     0.9959
+    ],
+    [
+     152.0,
+     1.0,
+     0.9919
+    ],
+    [
+     155.2,
+     1.0,
+     0.9187
+    ],
+    [
+     158.5,
+     1.0,
+     0.9838
+    ],
+    [
+     161.8,
+     1.0,
+     0.9798
+    ],
+    [
+     165.0,
+     1.0,
+     1.0
+    ],
+    [
+     168.3,
+     1.0,
+     1.0
+    ],
+    [
+     171.4,
+     1.0,
+     0.9
+    ],
+    [
+     174.7,
+     1.0,
+     1.0
+    ],
+    [
+     178.1,
+     1.0,
+     1.0
+    ],
+    [
+     181.3,
+     1.0,
+     0.996
+    ],
+    [
+     184.5,
+     1.0,
+     1.0
+    ],
+    [
+     187.8,
+     1.0,
+     1.0
+    ],
+    [
+     191.0,
+     1.0,
+     0.996
+    ],
+    [
+     194.2,
+     1.0,
+     0.992
+    ],
+    [
+     197.4,
+     1.0,
+     1.0
+    ],
+    [
+     200.6,
+     1.0,
+     1.0
+    ],
+    [
+     203.9,
+     1.0,
+     1.0
+    ],
+    [
+     207.1,
+     1.0,
+     1.0
+    ],
+    [
+     210.3,
+     1.0,
+     1.0
+    ],
+    [
+     213.6,
+     1.0,
+     1.0
+    ],
+    [
+     216.8,
+     1.0,
+     1.0
+    ],
+    [
+     220.0,
+     1.0,
+     1.0
+    ],
+    [
+     223.3,
+     0.0,
+     0.9767
+    ]
+   ]
+  }
+ },
+ "cases": {
+  "case_maintenance|cluster_outage": {
+   "workload": "case_maintenance",
+   "fault": "cluster_outage",
+   "state": "SUCCEEDED",
+   "clusters": "A>B",
+   "duration_s": 130.6,
+   "attempts": 2,
+   "detect_s": 8.3,
+   "action_s": 12.2,
+   "metrics": {
+    "auc_roc": 0.9442632456331086,
+    "auc_pr": 0.6421571910865741
+   },
+   "restored_stages": []
+  },
+  "case_fraud|cluster_outage": {
+   "workload": "case_fraud",
+   "fault": "cluster_outage",
+   "state": "SUCCEEDED",
+   "clusters": "A>B",
+   "duration_s": 183.4,
+   "attempts": 2,
+   "detect_s": 8.1,
+   "action_s": 8.1,
+   "metrics": {
+    "auc_roc": 0.9868078615125264,
+    "auc_pr": 0.8427718521490061
+   },
+   "restored_stages": []
+  },
+  "case_fraud|none": {
+   "workload": "case_fraud",
+   "fault": "none",
+   "state": "SUCCEEDED",
+   "clusters": "A",
+   "duration_s": 138.1,
+   "attempts": 1,
+   "detect_s": null,
+   "action_s": null,
+   "metrics": {
+    "auc_roc": 0.9868082322161871,
+    "auc_pr": 0.8435147343683742
+   },
+   "restored_stages": []
+  },
+  "case_maintenance|none": {
+   "workload": "case_maintenance",
+   "fault": "none",
+   "state": "SUCCEEDED",
+   "clusters": "A",
+   "duration_s": 88.1,
+   "attempts": 1,
+   "detect_s": null,
+   "action_s": null,
+   "metrics": {
+    "auc_roc": 0.9442632456331086,
+    "auc_pr": 0.6421571910865741
+   },
+   "restored_stages": []
+  }
+ },
+ "decision_excerpt": [
+  {
+   "t": -99.3,
+   "kind": "submit",
+   "text": "home cluster A"
+  },
+  {
+   "t": 0.0,
+   "kind": "fault_injected",
+   "text": ""
+  },
+  {
+   "t": 0.0,
+   "kind": "transition",
+   "text": "H=0.30 (unreachable=0.45, workers_lost=0.25)"
+  },
+  {
+   "t": 7.3,
+   "kind": "transition",
+   "text": "H=0.24 (unreachable=0.45, workers_lost=0.25)"
+  },
+  {
+   "t": 7.3,
+   "kind": "keep",
+   "text": "cluster FAILED but job still making progress -> not migrated"
+  },
+  {
+   "t": 10.4,
+   "kind": "failover",
+   "text": "cluster A FAILED, no progress for 10s; argmin J -> B (J_B=0.000)"
+  },
+  {
+   "t": 10.4,
+   "kind": "submit",
+   "text": "failover from A: argmin J -> B (J_B=0.000)"
+  },
+  {
+   "t": 124.0,
+   "kind": "job_end",
+   "text": "completed"
+  }
+ ],
+ "calibration_durations": [
+  226.6,
+  250.5,
+  68.1,
+  124.1
+ ],
+ "first_clean_runs": [
+  298.6,
+  264.5,
+  184.2,
+  126.2
+ ]
+}

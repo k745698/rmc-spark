@@ -1,6 +1,6 @@
 """Build the manuscript (.docx) by filling the official VIT/IEEE consolidated template.
 
-    python paper/build_paper.py --template "C:/Users/msi/Downloads/3_Consolidated_Template.docx"
+    python paper/build_paper.py --template path/to/3_Consolidated_Template.docx
 
 Inputs : paper/content/*.txt (manuscript source), paper/refs/refs_keyed.json (verified references),
          paper/Diagrams/*.png (figures)
@@ -374,6 +374,9 @@ def fig_caption_xml(num, caption, bm):
 def table_xml(rows, widths_pct, wide, numbers):
     total = WIDE_TWIPS if wide else COL_TWIPS
     ncol = max(len(r) for r in rows)
+    bad = [r for r in rows if len(r) != len(rows[0])]
+    if bad:   # a "|" inside a cell would silently shift the columns
+        raise SystemExit(f"table row has {len(bad[0])} cells, header has {len(rows[0])}: {bad[0][:3]}")
     pct = widths_pct if widths_pct and len(widths_pct) == ncol else [100 / ncol] * ncol
     s = sum(pct)
     widths = [int(total * p / s) for p in pct]
@@ -390,12 +393,14 @@ def table_xml(rows, widths_pct, wide, numbers):
         hdr = ri == 0
         trpr = "<w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>" if hdr else "<w:trPr><w:cantSplit/></w:trPr>"
         cells = []
+        # keep-with-next on every row but the last chains caption and rows together, so no table splits across pages
+        keep = "<w:keepNext/>" if ri < len(rows) - 1 else ""
         for ci in range(ncol):
             txt = numbers.resolve(r[ci]) if ci < len(r) else ""
             border = '<w:tcBorders><w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/></w:tcBorders>' if hdr else ""
             shade = '<w:shd w:val="clear" w:color="auto" w:fill="E3F0F8"/>' if hdr else ""
             cells.append(f'<w:tc><w:tcPr><w:tcW w:w="{widths[ci]}" w:type="dxa"/>{border}{shade}</w:tcPr>'
-                         f'<w:p><w:pPr><w:spacing w:before="20" w:after="20"/></w:pPr>'
+                         f'<w:p><w:pPr>{keep}<w:spacing w:before="20" w:after="20"/></w:pPr>'
                          f'{rich_runs(txt, sz=sz, bold=hdr)}</w:p></w:tc>')
         out.append(f"<w:tr>{trpr}{''.join(cells)}</w:tr>")
     out.append("</w:tbl>")
@@ -432,8 +437,20 @@ def initials(name):
     return f"{first} {parts[-1]}"
 
 
+def initials_cr(given, family):
+    """IEEE form from Crossref name parts: 'Nian-Feng', 'Tzeng' -> 'N.-F. Tzeng'; keeps 'van Dongen'."""
+    out = []
+    for word in given.replace(".", ". ").split():
+        if word[0].isalpha():
+            out.append("-".join(p[0] + "." for p in word.split("-") if p))
+    return (" ".join(out) + " " + family).strip()
+
+
 def ieee_ref(r):
-    a = [initials(x) for x in r["authors"]]
+    if r.get("authors_cr"):
+        a = [initials_cr(g, f) for g, f in r["authors_cr"]]
+    else:
+        a = [initials(x) for x in r["authors"]]
     if len(a) > 6:
         auth = f"{a[0]} et al."
     elif len(a) > 1:
@@ -480,7 +497,7 @@ def word_count(text):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--template", default=r"C:/Users/msi/Downloads/3_Consolidated_Template.docx")
+    ap.add_argument("--template", default=os.path.join(HERE, "3_Consolidated_Template.docx"))   # or pass --template
     ap.add_argument("--out", default=os.path.join(HERE, "RMC-Spark_Manuscript.docx"))
     a = ap.parse_args()
 
@@ -541,6 +558,11 @@ def main():
     p_title = next(e for e in children if "".join(e.itertext()) == "<TITLE OF THE PAPER>")
     for i, t in enumerate(texts(p_title)):
         t.text = title if i == 0 else ""
+    bs = etree.SubElement(p_title, W + "bookmarkStart")   # Index entry for the title/abstract page
+    bs.set(W + "id", "9990")
+    bs.set(W + "name", "sec_front")
+    be = etree.SubElement(p_title, W + "bookmarkEnd")
+    be.set(W + "id", "9990")
     p_auth = next(e for e in children if "".join(e.itertext()).startswith("Dr. M Rajasekhara Babu1"))
     rep = {", Second B. Author": f", [[Student name]] ({REGS[0]})", ", Third C. Author": f", [[Student name]] ({REGS[1]})",
            "Fourth D. Author": f"[[Student name]] ({REGS[2]})", ", Fifth E. Author": f", [[Student name]] ({REGS[3]})"}
@@ -559,6 +581,37 @@ def main():
                 t.text = "5"
         elif t.text in new_vals:
             t.text = new_vals[t.text]
+
+    # author line: one name per slot, never broken mid-name (professor, then two students per line)
+    def set_runs(p, xml):
+        for ch in [c for c in p if c.tag != W + "pPr"]:
+            p.remove(ch)
+        for ch in etree.fromstring(f'<w:p {NSDECL}>{xml}</w:p>'):
+            p.append(ch)
+
+    ak = dict(sz=20, bold=True, font=HFONT)
+    stud = [run("[[Student name]]", highlight="yellow", **ak) + run(f" ({r})", **ak) + run(str(i + 2), va="superscript", **ak)
+            for i, r in enumerate(REGS)]
+    set_runs(p_auth, run("Dr. M Rajasekhara Babu", **ak) + run("1", va="superscript", **ak) + "<w:r><w:br/></w:r>"
+             + stud[0] + run(", ", **ak) + stud[1] + "<w:r><w:br/></w:r>" + stud[2] + run(", ", **ak) + stud[3])
+    # affiliation, e-mail and corresponding-author lines: the template's 0.75 line spacing makes them overlap
+    p_aff = p_auth.getnext()
+    for p in (p_auth, p_aff, p_mail, p_mail.getnext()):
+        ppr = p.find(W + "pPr")
+        sp = ppr.find(W + "spacing")
+        if sp is None:
+            sp = etree.Element(W + "spacing")
+            nxt = ppr.find(W + "ind") if ppr.find(W + "ind") is not None else ppr.find(W + "jc")
+            ppr.insert(list(ppr).index(nxt) if nxt is not None else 0, sp)
+        for k in list(sp.attrib):
+            del sp.attrib[k]
+        sp.set(W + "before", "0" if p is not p_auth else "120")
+        sp.set(W + "after", {id(p_auth): "120", id(p_aff): "20", id(p_mail): "60"}.get(id(p), "120"))
+        sp.set(W + "line", "264" if p is p_auth else "240")
+        sp.set(W + "lineRule", "auto")
+        if p is not p_auth:
+            for e in p.iter(W + "sz", W + "szCs"):
+                e.set(W + "val", "16")
     p_abs = next(e for e in children if "".join(e.itertext()).startswith("ABSTRACT"))
     at = texts(p_abs)
     at[1].text = " " + abstract
@@ -567,6 +620,13 @@ def main():
     p_kw = next(e for e in children if "".join(e.itertext()).startswith("INDEX TERMS"))
     kt = texts(p_kw)
     kt[1].text = " " + keywords
+    kppr = p_kw.find(W + "pPr")
+    for e in kppr.findall(W + "ind"):   # template right indent made the keywords wrap early
+        kppr.remove(e)
+    if kppr.find(W + "jc") is None:
+        jc = etree.Element(W + "jc")
+        jc.set(W + "val", "both")
+        kppr.insert(list(kppr).index(kppr.find(W + "rPr")), jc)
     for t in kt[2:]:
         t.text = ""
 
@@ -579,7 +639,8 @@ def main():
     word_by_sec = OrderedDict()
     sec_titles = OrderedDict()
     cur_sec_key = 0
-    word_by_sec[0] = word_count(abstract) + len(keywords.split(","))
+    word_by_sec[0] = word_count(abstract) + word_count(keywords)
+    kw_words = word_count(keywords)
     first_para = True
     fig_entries, tab_entries = [], []
 
@@ -654,17 +715,80 @@ def main():
     for k in nums.cite:
         new.append(reference_xml(refs[k]))
 
-    # student bios (placeholders) after the faculty bio
-    bios = []
+    # -------------------------------------------------- author biographies: photo left, text right
+    faculty_bio = children[idx_bio:idx_second_bio]
+    blip = faculty_bio[0].find(".//{http://schemas.openxmlformats.org/drawingml/2006/main}blip")
+    photo_rid = blip.get(f"{{{R_NS}}}embed")
+    bio_paras = []                       # the professor's text, runs copied without the anchored picture
+    for p in faculty_bio:
+        rs = [copy.deepcopy(r) for r in p.findall(W + "r") if r.find(".//" + W + "drawing") is None]
+        for r in rs:
+            for lb in r.findall(W + "lastRenderedPageBreak"):
+                r.remove(lb)
+        if "".join(t.text or "" for r in rs for t in r.iter(W + "t")).strip():
+            bio_paras.append(rs)
+    PHOTO_W, TEXT_W = 1560, COL_TWIPS - 1560
+    ext = faculty_bio[0].find(".//{http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing}extent")
+    PHOTO_CX, PHOTO_CY = int(ext.get("cx")), int(ext.get("cy"))   # keep the template photo's size and aspect
+
+    def bio_table(left_xml, right_paras_xml, framed):
+        border = ('<w:tcBorders><w:top w:val="single" w:sz="4" w:color="808080"/><w:left w:val="single" w:sz="4" w:color="808080"/>'
+                  '<w:bottom w:val="single" w:sz="4" w:color="808080"/><w:right w:val="single" w:sz="4" w:color="808080"/></w:tcBorders>'
+                  if framed else "")
+        return (f'<w:tbl {NSDECL}><w:tblPr><w:tblW w:w="{COL_TWIPS}" w:type="dxa"/>'
+                '<w:tblBorders><w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/>'
+                '<w:insideH w:val="nil"/><w:insideV w:val="nil"/></w:tblBorders><w:tblLayout w:type="fixed"/>'
+                '<w:tblCellMar><w:left w:w="0" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr>'
+                f'<w:tblGrid><w:gridCol w:w="{PHOTO_W}"/><w:gridCol w:w="{TEXT_W}"/></w:tblGrid>'
+                '<w:tr><w:trPr><w:cantSplit/></w:trPr>'
+                f'<w:tc><w:tcPr><w:tcW w:w="{PHOTO_W}" w:type="dxa"/>{border}<w:vAlign w:val="top"/></w:tcPr>{left_xml}</w:tc>'
+                f'<w:tc><w:tcPr><w:tcW w:w="{TEXT_W}" w:type="dxa"/></w:tcPr>{right_paras_xml}</w:tc></w:tr></w:tbl>'
+                # thin spacer (exact 1 pt line) so the professor and all four students fit on one page
+                f'<w:p {NSDECL}><w:pPr><w:spacing w:before="0" w:after="120" w:line="20" w:lineRule="exact"/></w:pPr></w:p>')
+
+    photo_xml = (f'<w:p><w:pPr><w:spacing w:after="0"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">'
+                 f'<wp:extent cx="{PHOTO_CX}" cy="{PHOTO_CY}"/><wp:docPr id="7001" name="Author photo"/>'
+                 '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>'
+                 '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>'
+                 '<pic:nvPicPr><pic:cNvPr id="7001" name="Author photo"/><pic:cNvPicPr/></pic:nvPicPr>'
+                 f'<pic:blipFill><a:blip r:embed="{photo_rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+                 f'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{PHOTO_CX}" cy="{PHOTO_CY}"/></a:xfrm>'
+                 '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>'
+                 '</wp:inline></w:drawing></w:r></w:p>')
+    prof_text = "".join(
+        f'<w:p {NSDECL}><w:pPr><w:spacing w:after="60"/><w:jc w:val="both"/></w:pPr>'
+        + "".join(etree.tostring(r).decode() for r in rs) + "</w:p>" for rs in bio_paras)
+    bios = [f'<w:p {NSDECL}><w:pPr><w:spacing w:before="0" w:after="240"/></w:pPr></w:p>',   # gap after the references
+            bio_table(photo_xml, prof_text, framed=False)]
+    # suggested research interests (members should adjust); the sections come from OWNER, so they always match
+    # the Contributions table. Kept short so the professor and all four students fit in one column.
+    INTERESTS = {"26MML0054": "anomaly detection and AIOps",
+                 "26MML0006": "big data engineering and Spark performance",
+                 "26MML0047": "cloud security and data governance",
+                 "26MML0015": "distributed systems and fault tolerance"}
+
+    def wrote(reg):
+        secs = [ROMAN[k - 1] for k in sorted(k for k, v in OWNER.items() if v == reg and k)]
+        parts = (["the abstract"] if OWNER.get(0) == reg else []) + [f"Sections {', '.join(secs[:-1])} and {secs[-1]}"]
+        if APPENDIX_OWNER == reg:
+            parts.append("the Appendix")
+        lead = "Team point of contact; wrote " if reg == "26MML0015" else "Wrote "
+        return lead + (", ".join(parts[:-1]) + " and " + parts[-1] if len(parts) > 1 else parts[0]) + "."
+
     for reg in REGS:
-        bios.append(f'<w:p {NSDECL}><w:pPr><w:spacing w:before="200"/><w:jc w:val="both"/></w:pPr>'
-                    f'{run("[[STUDENT NAME]] ", sz=16, bold=True, highlight="yellow")}'
-                    f'{run(f"(Reg. No. {reg}) is a postgraduate student in the School of Computer Science and Engineering, Vellore Institute of Technology (VIT), Vellore, India. ", sz=16)}'
-                    f'{run("[[Add research interests, contribution to this work and a 1 in x 1.25 in photograph.]]", sz=16, highlight="yellow")}</w:p>')
+        frame = (f'<w:p><w:pPr><w:spacing w:before="480" w:after="480"/><w:jc w:val="center"/></w:pPr>'
+                 f'{run("Photo", sz=14, color="808080")}</w:p>')
+        text = (f'<w:p {NSDECL}><w:pPr><w:jc w:val="both"/></w:pPr>'
+                f'{run("[[STUDENT NAME]] ", sz=16, bold=True, font=HFONT, highlight="yellow")}'
+                f'{run(f"(Reg. No. {reg}) is a postgraduate student in the School of Computer Science and Engineering, VIT, Vellore, India. ", sz=16)}'
+                f'{run(f"Research interests: {INTERESTS[reg]}. {wrote(reg)}", sz=16)}</w:p>')
+        bios.append(bio_table(frame, text, framed=True))
+    # keep-with-next on every bio paragraph: the professor and the four students move as one block into the
+    # next column instead of splitting (a hard column break breaks Word's balancing of the final sections)
+    bios = [b.replace("<w:pPr>", "<w:pPr><w:keepNext/>") for b in bios]
 
     # -------------------------------------------------- splice into body
     keep_before = children[:idx_intro]
-    faculty_bio = children[idx_bio:idx_second_bio]
     tail = children[idx_sect_end:]
     for c in list(body):
         body.remove(c)
@@ -673,12 +797,25 @@ def main():
     for x in new:
         for e in el(x):
             body.append(e)
-    for c in faculty_bio:
-        body.append(c)
     for x in bios:
         for e in el(x):
             body.append(e)
+    # The template ends with empty paragraphs and two extra continuous sections after the bios; with the bios
+    # filling the right column Word pushes those empty sections onto a blank last page. Drop them and let the
+    # bios' own two-column section properties close the document instead.
+    last_sect = None
     for c in tail:
+        if c.tag == W + "sectPr":
+            if last_sect is not None:
+                c = copy.deepcopy(last_sect)
+            body.append(c)
+            continue
+        sp = c.find(".//" + W + "sectPr")
+        if (c.tag == W + "p" and not "".join(c.itertext()).strip() and c.find(".//" + W + "drawing") is None
+                and c.find(".//" + W + "br") is None):
+            if sp is not None and last_sect is None:
+                last_sect = sp       # properties of the section that holds the references and bios
+            continue
         body.append(c)
 
     # -------------------------------------------------- remove empty spacer paragraphs after the list of tables
@@ -741,9 +878,9 @@ def main():
         return body_rows[:n_body]
 
     # Index: Abstract, 22 sections, References, Appendix
-    entries = [("", "Executive Summary and Abstract", "sec_1")]  # page of the paper start ~ before sec 1
+    entries = [("", "Executive Summary and Abstract", "sec_front")]  # page of the paper start ~ before sec 1
     entries += [(str(i), f"{ROMAN[i - 1]}. {t}", f"sec_{i}") for i, t in sec_titles.items()]
-    entries += [("", "References", "sec_refs"), ("", "Appendix", "sec_appendix")]
+    entries += [("", "Appendix", "sec_appendix"), ("", "References", "sec_refs")]   # document order
     for row, (sl, name, bm) in zip(fit_rows(t_index, len(entries)), entries):
         tcs = row.findall(W + "tc")
         cell_set(tcs[0], sl)
@@ -785,6 +922,120 @@ def main():
         cell_set(tcs[2], str(totals[reg]))
     tcs = cons_rows[6].findall(W + "tc")
     cell_set(tcs[-1], str(sum(totals.values())))
+
+    # -------------------------------------------------- front-matter layout: one look for every list table
+    def el(parent, tag, before=(), **attrs):
+        e = parent.find(W + tag)
+        if e is None:
+            e = etree.Element(W + tag)
+            pos = next((i for i, ch in enumerate(parent) if etree.QName(ch).localname in before), len(parent))
+            parent.insert(pos, e)
+        for k, v in attrs.items():
+            e.set(W + k, v)
+        return e
+
+    TPR_AFTER = ("tblLayout", "tblCellMar", "tblLook", "tblCaption", "tblDescription")
+    def normalise(tbl, widths=None, pad="40"):
+        tpr = tbl.find(W + "tblPr")
+        for e in tpr.findall(W + "tblInd"):
+            tpr.remove(e)
+        el(tpr, "jc", before=("tblCellSpacing", "tblInd", "tblBorders", "shd") + TPR_AFTER, val="center")
+        if widths:
+            el(tpr, "tblW", before=("jc",), w=str(sum(widths)), type="dxa")
+            el(tpr, "tblLayout", before=("tblCellMar", "tblLook", "tblCaption", "tblDescription"), type="fixed")
+            grid = tbl.find(W + "tblGrid")
+            for g, wd in zip(grid.findall(W + "gridCol"), widths):
+                g.set(W + "w", str(wd))
+        for tr in tbl.findall(W + "tr"):
+            trpr = tr.find(W + "trPr")
+            if trpr is not None:
+                for e in trpr.findall(W + "trHeight") + trpr.findall(W + "jc"):
+                    trpr.remove(e)
+            tcs = tr.findall(W + "tc")
+            for ci, tc in enumerate(tcs):
+                tcpr = tc.find(W + "tcPr")
+                if widths and len(tcs) == len(widths):
+                    el(tcpr, "tcW", before=("gridSpan", "vMerge", "tcBorders", "shd", "noWrap", "tcMar", "vAlign"),
+                       w=str(widths[ci]), type="dxa")
+                el(tcpr, "vAlign", before=("hideMark", "headers"), val="center")
+                for p in tc.findall(W + "p"):
+                    ppr = p.find(W + "pPr")
+                    if ppr is None:
+                        ppr = etree.Element(W + "pPr")
+                        p.insert(0, ppr)
+                    sp = el(ppr, "spacing", before=("ind", "contextualSpacing", "jc", "textAlignment", "rPr"),
+                            after="40", line="240", lineRule="auto")
+                    sp.set(W + "before", pad)   # "before" is a keyword of el(), so set it here
+                    sp.set(W + "after", pad)
+                    if not (widths and ci == 1):   # title column stays left-aligned, the rest centred
+                        el(ppr, "jc", before=("textDirection", "textAlignment", "rPr"), val="center")
+                    if p.find(W + "fldSimple") is not None:   # Word formats a refreshed field like the paragraph mark
+                        mrp = el(ppr, "rPr")
+                        el(mrp, "rFonts", before=("b", "bCs", "color", "sz", "szCs"), ascii="Times New Roman",
+                           hAnsi="Times New Roman", cs="Times New Roman")
+                    for fs in p.findall(W + "fldSimple"):   # page numbers in the body font
+                        for r in fs.findall(W + "r"):
+                            rp = el(r, "rPr", before=("t",))
+                            el(rp, "rFonts", before=("b", "sz"), ascii="Times New Roman", hAnsi="Times New Roman",
+                               cs="Times New Roman")
+
+    PPR_ORDER = ("pStyle keepNext keepLines pageBreakBefore framePr widowControl numPr suppressLineNumbers pBdr shd tabs "
+                 "suppressAutoHyphens kinsoku wordWrap overflowPunct topLinePunct autoSpaceDE autoSpaceDN bidi "
+                 "adjustRightInd snapToGrid spacing ind contextualSpacing mirrorIndents suppressOverlap jc textDirection "
+                 "textAlignment textboxTightWrap outlineLvl divId cnfStyle rPr sectPr pPrChange").split()
+    TBLPR_ORDER = ("tblStyle tblpPr tblOverlap bidiVisual tblStyleRowBandSize tblStyleColBandSize tblW jc tblCellSpacing "
+                   "tblInd tblBorders shd tblLayout tblCellMar tblLook tblCaption tblDescription tblPrChange").split()
+
+    def schema_sort(parent, order):   # el() inserts by a guess; this makes the child order schema-valid
+        kids = sorted(parent, key=lambda c: order.index(etree.QName(c).localname)
+                      if etree.QName(c).localname in order else len(order))
+        for c in kids:
+            parent.append(c)
+
+    def sort_table(tbl):
+        schema_sort(tbl.find(W + "tblPr"), TBLPR_ORDER)
+        for ppr in tbl.iter(W + "pPr"):
+            schema_sort(ppr, PPR_ORDER)
+
+    LIST_W = [1300, 5900, 1400]
+    for tbl in (t_index, t_figs, t_tabs):
+        normalise(tbl, LIST_W)
+    normalise(t_contrib, [900, 4900, 2000, 1200], pad="0")   # keeps it and the consolidated table on one page
+    normalise(t_cons)
+    for tr in t_cons.findall(W + "tr")[:-1]:   # never split the consolidated table across pages
+        for ppr in tr.iter(W + "pPr"):
+            el(ppr, "keepNext")
+    for tbl in (t_index, t_figs, t_tabs, t_contrib, t_cons):
+        sort_table(tbl)
+
+    # headings above the lists: one style; drop the template's duplicate black "Index"; List of Tables on a new page
+    heads = {"Index": None, "List of Figures": None, "List of Tables": None, "Contributions": None}
+    for p in list(body.iter(W + "p")):
+        txt = "".join(p.itertext()).strip()
+        if txt in heads:
+            if txt == "Index" and heads["Index"] is None and p.find(".//" + W + "color") is None:
+                nxt = p.getnext()
+                p.getparent().remove(p)
+                if nxt is not None and not "".join(nxt.itertext()).strip() and nxt.find(".//" + W + "br") is None:
+                    nxt.getparent().remove(nxt)
+                continue
+            heads[txt] = p
+            for r in p.findall(W + "r"):
+                rp = el(r, "rPr", before=("t", "br", "lastRenderedPageBreak"))
+                el(rp, "b", before=("color", "sz", "szCs"))
+                el(rp, "color", before=("sz", "szCs"), val="385623")
+                el(rp, "sz", before=("szCs",), val="28")
+                el(rp, "szCs", val="28")
+    # List of Figures, List of Tables and the paper title each start a new page
+    for lt in (heads["List of Figures"], heads["List of Tables"], p_title):
+        prev = lt.getprevious()
+        while prev is not None and prev.tag == W + "p" and not "".join(prev.itertext()).strip() \
+                and prev.find(".//" + W + "br") is None and prev.find(".//" + W + "sectPr") is None:
+            dead, prev = prev, prev.getprevious()
+            dead.getparent().remove(dead)
+        el(lt.find(W + "pPr"), "pageBreakBefore")
+    for p in (heads["List of Figures"], heads["List of Tables"], p_title, p_auth, p_aff, p_mail, p_mail.getnext(), p_kw):
+        schema_sort(p.find(W + "pPr"), PPR_ORDER)
 
     tree.write(doc_path, xml_declaration=True, encoding="UTF-8", standalone=True)
     rels.write(rels_path, xml_declaration=True, encoding="UTF-8", standalone=True)

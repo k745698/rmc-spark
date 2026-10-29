@@ -1,41 +1,35 @@
-# Manuscript: Resilient Data Science Programming for Fault-Tolerant Distributed Analytics in Multi-Cluster Spark Environments
+# Manuscript build scripts
+
+The finished manuscript (.docx/.doc/.pdf) and the 600-DPI diagrams are part of the submission package,
+not of this repository. This folder holds the sources and scripts that produce them.
 
 | File / folder | What it is |
 |---|---|
-| `RMC-Spark_Manuscript.docx` | The manuscript, filled into the official VIT consolidated template (cover, Index, List of Figures/Tables, Contributions, IEEE Access body, references, bios) |
-| `RMC-Spark_Manuscript.pdf` | PDF export for reading |
-| `Diagrams/` | All 32 figures at 600 DPI, named `Fig NN <Title>.png` (guideline: separate diagram folder) |
 | `content/*.txt` | Manuscript source text, one file per group of sections |
-| `refs/refs_keyed.json` | 127 references with metadata from OpenAlex (all real records, none retracted) |
-| `make_figures.py` | Regenerates `Diagrams/` |
-| `build_paper.py` | Rebuilds the .docx from `content/`, `refs/` and `Diagrams/` into the template |
-| `build_report.txt` | Counts produced by the last build: figures, tables, equations, references, words per section and per member |
+| `refs/refs_keyed.json` | The 127 references with metadata (all verified against Crossref/OpenAlex) |
+| `results_data.py` | Computes every measured value used in the paper from `results/raw/` into `results.json` (runs whose fault never fired are excluded) |
+| `drawio_figures.py` | Builds all 32 figures as editable draw.io diagrams and exports them as 600-DPI PNGs (needs draw.io Desktop) into `paper/Diagrams/` |
+| `build_paper.py` | Fills `content/`, `refs/` and `Diagrams/` into the official VIT consolidated template and writes the .docx |
+| `check_words.py` | Checks every section's word count against the plan's ranges and the 15,000-word total |
+| `make_figures.py`, `make_fig28.py` | Older matplotlib versions of the figures (no longer used) |
+| `make_guide.js`, `make_impl_plan.js` | Generate the research-guide and implementation-plan documents |
 
 ## Rebuild
 
-Run with the Anaconda Python, which has matplotlib, lxml and Pillow:
-
 ```bash
-python paper/make_figures.py
+python paper/results_data.py
 ```
 
 ```bash
-python paper/build_paper.py --template "C:/Users/msi/Downloads/3_Consolidated_Template.docx"
+python paper/drawio_figures.py
 ```
 
-After a rebuild, open the .docx in Word and press `Ctrl+A`, `F9` to refresh the page numbers in the Index, List of Figures and List of Tables. The page numbers are PAGEREF fields.
+```bash
+python paper/build_paper.py --template path/to/3_Consolidated_Template.docx
+```
 
-## Before submission
+After a rebuild, open the .docx in Word and press `Ctrl+A`, `F9` to refresh the page numbers in the Index,
+List of Figures and List of Tables (they are PAGEREF fields).
 
-1. **Run the experiments** (repository README, Steps 6–8). Then replace every yellow-highlighted `[[...]]` placeholder (about 120) with measured values:
-   - Sections XV–XVII and XIX
-   - Tables 11–15
-   - Figures 21–24 and 28: copy the PNGs from `results/report/` into `Diagrams/` using the same file names, then rebuild
-2. **Fill in personal details:** student names, VIT e-mails and bios (search for `[[Student name]]` and `[[STUDENT NAME]]`), and the names on the cover page boxes ("Name").
-3. **Add the GitHub link** in the Data Availability section.
-4. **Delete the AUTHOR NOTE** at the start of Section XV.
-5. **Run a similarity check.** The guideline requires ≤ 10 %; the text is original, but check it anyway.
-6. **Redraw diagrams in draw.io (optional).** The guidelines say diagrams should be redrawn with draw.io. The figures here are generated programmatically and are original, but if your faculty insists on draw.io, use them as the layout reference.
-7. **Word count.** The plan's per-section minimums add up to about 18.9k words, but the plan's total is 10–15k. The text is about 16.6k words of prose; the results sections will grow when real numbers are added. Confirm the limit with your faculty.
-
-Equations are native Word (OMML) equations, so they are editable in Word's equation editor. Keep the file as .docx: saving as legacy .doc turns the equations into pictures.
+Equations are native Word (OMML) equations, editable in Word's equation editor. Keep the file as .docx:
+saving as legacy .doc turns the equations into pictures.

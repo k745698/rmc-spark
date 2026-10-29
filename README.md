@@ -18,9 +18,10 @@ RMC-Spark adds a resilience layer above several independent Apache Spark cluster
 | — | Experiment harness + analysis | Runs systems × workloads × faults × repetitions; produces Tables 11–12 and Figures 21–24 at 600 DPI | `experiments/`, `analysis/` |
 
 > **Status.** All code is written and the decision logic is covered by 56 unit/simulation tests
-> (`pytest`, all passing). The Docker testbed has **not yet been run end-to-end**, and there are
-> **no measured results yet**. Every number in the paper must come from `results/` after you run the
-> experiments below.
+> (`pytest`, all passing). The testbed has been run end-to-end: the 36-run experiment matrix and two
+> machine-learning case studies. Their raw measurements are in `results/raw/` and the tables and figures
+> in `results/report/`; every number in the paper is derived from these files by `paper/results_data.py`.
+> To record a demo video of the testbed, double-click `scripts/Record_Videos.bat`.
 
 ---
 
@@ -254,6 +255,20 @@ docker compose exec controller python -m experiments.run_matrix experiments/conf
 
 Expected outcome: B1 + `cluster_outage` → `FAILED` (deadline), P + `cluster_outage` → `SUCCEEDED` on `A>B`.
 If this works, the testbed is ready.
+
+### Step 6b — minimum experiment for the paper (≈ 1.5–2 h, one command)
+
+Enough for every figure and table the section plan requires (Figs 21–24, 28; Tables 11–13, 15):
+4 systems (B1, B2, B3, P) × ETL × 3 faults (none, executor_kill, cluster_outage) × 3 reps = **36 runs**,
+on smaller data (1.5 M trips) with deadlines of 3× the measured clean runtime.
+
+```bash
+powershell -ExecutionPolicy Bypass -File scripts\run_minimum.ps1
+```
+
+Add `-CaseStudies` for the two Section XVIII case studies (about 15 min more, internet needed once), `-SkipData` if the
+data are already generated, `-Fresh` to discard an earlier `results/raw/minimum`. Results: `results/raw/minimum/runs.csv`
+and `results/report/`. The bigger matrix below is optional.
 
 ### Step 7 — calibrate and run the full matrix
 
