@@ -1,0 +1,3 @@
+run_id,rep,system,mode,policy,workload,fault,job_id,t_submit,t_fault,t_detect,t_action,t_end,duration_s,state,outcome,attempts,failovers,retries,clusters,fault_target,mtbf_at_submit_s
+438ee88279,0,P_rmc,smart,adaptive,etl_taxi,none,P_rmc-etl_taxi-none-r0-7443ad,1791485508.272,,,,1791485657.165,148.893,SUCCEEDED,completed,1,0,0,A,,902.7
+6a236ac316,0,P_rmc,smart,adaptive,etl_taxi,cluster_outage,P_rmc-etl_taxi-cluster_outage-r0-779f89,1791485670.791,1791485719.675,1791485726.459,1791485726.459,1791485922.82,252.029,SUCCEEDED,completed,2,1,0,A>B,A,1227.8

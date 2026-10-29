@@ -1,0 +1,5 @@
+run_id,rep,system,mode,policy,workload,fault,job_id,t_submit,t_fault,t_detect,t_action,t_end,duration_s,state,outcome,attempts,failovers,retries,clusters,fault_target,mtbf_at_submit_s
+282364d6ec,0,B1_vanilla,none,never,etl_taxi,none,B1_vanilla-etl_taxi-none-r0-6d99ca,1791821418.032,,,,1791821644.634,226.601,SUCCEEDED,completed,1,0,0,A,,912.5
+846d6d76e3,1,B1_vanilla,none,never,etl_taxi,none,B1_vanilla-etl_taxi-none-r1-d24bee,1791821652.343,,,,1791821902.873,250.531,SUCCEEDED,completed,1,0,0,A,,1381.8
+28e595eea9,0,B1_vanilla,none,never,case_maintenance,none,B1_vanilla-case_maintenance-none-r0-dbc83e,1791830367.439,,,,1791830435.514,68.075,SUCCEEDED,completed,1,0,0,A,,902.5
+574883f618,0,B1_vanilla,none,never,case_fraud,none,B1_vanilla-case_fraud-none-r0-4e96f5,1791830441.752,,,,1791830565.873,124.122,SUCCEEDED,completed,1,0,0,A,,1051.1

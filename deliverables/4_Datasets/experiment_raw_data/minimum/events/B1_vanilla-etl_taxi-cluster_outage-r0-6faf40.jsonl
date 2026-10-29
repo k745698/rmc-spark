@@ -1,0 +1,2 @@
+{"ts": 1791822567.955614, "event": "attempt_started", "job_id": "B1_vanilla-etl_taxi-cluster_outage-r0-6faf40", "attempt": 0, "cluster": "A", "policy": "never", "mtbf_s": 2079.3, "committed_stages": []}
+{"ts": 1791822602.4696631, "event": "stage_started", "job_id": "B1_vanilla-etl_taxi-cluster_outage-r0-6faf40", "attempt": 0, "cluster": "A", "policy": "never", "stage": "clean"}

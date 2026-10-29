@@ -1,0 +1,5 @@
+run_id,rep,system,mode,policy,workload,fault,job_id,t_submit,t_fault,t_detect,t_action,t_end,duration_s,state,outcome,attempts,failovers,retries,clusters,fault_target,mtbf_at_submit_s
+f50d643eb9,0,P_rmc,smart,always,case_maintenance,cluster_outage,P_rmc-case_maintenance-cluster_outage-r0-8f2ba5,1791830574.874,1791830604.518,1791830612.826,1791830616.727,1791830705.475,130.601,SUCCEEDED,completed,2,1,0,A>B,A,903.2
+2bcd7f2ff2,0,P_rmc,smart,always,case_fraud,cluster_outage,P_rmc-case_fraud-cluster_outage-r0-2c9855,1791830733.498,1791830785.21,1791830793.328,1791830793.328,1791830916.867,183.369,SUCCEEDED,completed,2,1,0,A>B,A,549.9
+06f2005ded,0,P_rmc,smart,always,case_fraud,none,P_rmc-case_fraud-none-r0-1bcac0,1791830946.696,,,,1791831084.818,138.122,SUCCEEDED,completed,1,0,0,A,,457.6
+8d91b9846b,0,P_rmc,smart,always,case_maintenance,none,P_rmc-case_maintenance-none-r0-eef3aa,1791831093.027,,,,1791831181.15,88.123,SUCCEEDED,completed,1,0,0,A,,555.2

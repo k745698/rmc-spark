@@ -1,0 +1,74 @@
+4 systems x 1 workloads x 3 faults x 3 reps = 36 runs, roughly 2.4 h of job time (+ recovery/cool-down)
+[1/36] rep=0 system=B1_vanilla workload=etl_taxi fault=none
+    -> SUCCEEDED in 298.552 s, attempts=1, clusters=A
+[2/36] rep=0 system=B3_naive_ha workload=etl_taxi fault=none
+    -> SUCCEEDED in 264.505 s, attempts=1, clusters=A
+[3/36] rep=0 system=B1_vanilla workload=etl_taxi fault=cluster_outage
+    -> FAILED in 716.633 s, attempts=1, clusters=A
+[4/36] rep=0 system=B2_fixed_ckpt workload=etl_taxi fault=none
+    -> SUCCEEDED in 184.201 s, attempts=1, clusters=A
+[5/36] rep=0 system=P_rmc workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 138.165 s, attempts=1, clusters=A
+[6/36] rep=0 system=B2_fixed_ckpt workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 168.164 s, attempts=1, clusters=A
+[7/36] rep=0 system=B3_naive_ha workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 152.181 s, attempts=1, clusters=A
+[8/36] rep=0 system=P_rmc workload=etl_taxi fault=cluster_outage
+    -> SUCCEEDED in 223.306 s, attempts=2, clusters=A>B
+[9/36] rep=0 system=P_rmc workload=etl_taxi fault=none
+    -> SUCCEEDED in 126.163 s, attempts=1, clusters=A
+[10/36] rep=0 system=B3_naive_ha workload=etl_taxi fault=cluster_outage
+    -> SUCCEEDED in 239.666 s, attempts=2, clusters=A>B
+[11/36] rep=0 system=B2_fixed_ckpt workload=etl_taxi fault=cluster_outage
+    -> FAILED in 717.937 s, attempts=1, clusters=A
+[12/36] rep=0 system=B1_vanilla workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 160.167 s, attempts=1, clusters=A
+[13/36] rep=1 system=B2_fixed_ckpt workload=etl_taxi fault=cluster_outage
+    -> FAILED in 719.212 s, attempts=1, clusters=A
+[14/36] rep=1 system=P_rmc workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 144.136 s, attempts=1, clusters=A
+[15/36] rep=1 system=B2_fixed_ckpt workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 148.159 s, attempts=1, clusters=A
+[16/36] rep=1 system=P_rmc workload=etl_taxi fault=cluster_outage
+    -> SUCCEEDED in 203.899 s, attempts=2, clusters=A>B
+[17/36] rep=1 system=B3_naive_ha workload=etl_taxi fault=none
+    -> SUCCEEDED in 106.104 s, attempts=1, clusters=A
+[18/36] rep=1 system=B1_vanilla workload=etl_taxi fault=cluster_outage
+    -> FAILED in 717.208 s, attempts=1, clusters=A
+[19/36] rep=1 system=B3_naive_ha workload=etl_taxi fault=cluster_outage
+    -> SUCCEEDED in 92.089 s, attempts=1, clusters=A
+[20/36] rep=1 system=B1_vanilla workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 92.104 s, attempts=1, clusters=A
+[21/36] rep=1 system=B1_vanilla workload=etl_taxi fault=none
+    -> SUCCEEDED in 92.109 s, attempts=1, clusters=A
+[22/36] rep=1 system=B2_fixed_ckpt workload=etl_taxi fault=none
+    -> SUCCEEDED in 112.108 s, attempts=1, clusters=A
+[23/36] rep=1 system=B3_naive_ha workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 90.094 s, attempts=1, clusters=A
+[24/36] rep=1 system=P_rmc workload=etl_taxi fault=none
+    -> SUCCEEDED in 90.114 s, attempts=1, clusters=A
+[25/36] rep=2 system=B3_naive_ha workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 92.091 s, attempts=1, clusters=A
+[26/36] rep=2 system=B1_vanilla workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 90.108 s, attempts=1, clusters=A
+[27/36] rep=2 system=P_rmc workload=etl_taxi fault=cluster_outage
+    -> SUCCEEDED in 92.116 s, attempts=1, clusters=A
+[28/36] rep=2 system=B1_vanilla workload=etl_taxi fault=none
+    -> SUCCEEDED in 92.114 s, attempts=1, clusters=A
+[29/36] rep=2 system=P_rmc workload=etl_taxi fault=none
+    -> SUCCEEDED in 92.092 s, attempts=1, clusters=A
+[30/36] rep=2 system=B3_naive_ha workload=etl_taxi fault=cluster_outage
+    -> SUCCEEDED in 92.11 s, attempts=1, clusters=A
+[31/36] rep=2 system=B1_vanilla workload=etl_taxi fault=cluster_outage
+    -> SUCCEEDED in 92.096 s, attempts=1, clusters=A
+[32/36] rep=2 system=B2_fixed_ckpt workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 126.124 s, attempts=1, clusters=A
+[33/36] rep=2 system=B3_naive_ha workload=etl_taxi fault=none
+    -> SUCCEEDED in 90.096 s, attempts=1, clusters=A
+[34/36] rep=2 system=B2_fixed_ckpt workload=etl_taxi fault=none
+    -> SUCCEEDED in 114.127 s, attempts=1, clusters=A
+[35/36] rep=2 system=B2_fixed_ckpt workload=etl_taxi fault=cluster_outage
+    -> FAILED in 716.412 s, attempts=1, clusters=A
+[36/36] rep=2 system=P_rmc workload=etl_taxi fault=executor_kill
+    -> SUCCEEDED in 140.132 s, attempts=1, clusters=A
+done: results/raw/minimum/runs.csv

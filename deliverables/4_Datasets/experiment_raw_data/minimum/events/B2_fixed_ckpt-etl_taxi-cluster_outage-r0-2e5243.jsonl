@@ -1,0 +1,4 @@
+{"ts": 1791824617.77013, "event": "attempt_started", "job_id": "B2_fixed_ckpt-etl_taxi-cluster_outage-r0-2e5243", "attempt": 0, "cluster": "A", "policy": "always", "mtbf_s": 1326.7, "committed_stages": []}
+{"ts": 1791824636.7918894, "event": "stage_started", "job_id": "B2_fixed_ckpt-etl_taxi-cluster_outage-r0-2e5243", "attempt": 0, "cluster": "A", "policy": "always", "stage": "clean"}
+{"ts": 1791824684.4253929, "event": "stage_completed", "job_id": "B2_fixed_ckpt-etl_taxi-cluster_outage-r0-2e5243", "attempt": 0, "cluster": "A", "policy": "always", "stage": "clean", "compute_s": 29.68427324295044, "rows": 1452280, "uncheckpointed_work_s": 29.68427324295044, "checkpoint": true, "write_s": 17.35981822013855, "reason": "policy=always", "tau_s": null}
+{"ts": 1791824684.4664218, "event": "stage_started", "job_id": "B2_fixed_ckpt-etl_taxi-cluster_outage-r0-2e5243", "attempt": 0, "cluster": "A", "policy": "always", "stage": "enrich"}

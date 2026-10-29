@@ -1,0 +1,113 @@
+{
+  "experiment": {
+    "name": "smoke",
+    "output_dir": "results/raw/smoke",
+    "repetitions": 1,
+    "seed": 2026,
+    "transient_duration_s": 60,
+    "cooldown_s": 10,
+    "systems": {
+      "B1_vanilla": {
+        "mode": "none",
+        "policy": "never"
+      },
+      "P_rmc": {
+        "mode": "smart",
+        "policy": "adaptive",
+        "conf": {
+          "spark.speculation": "true"
+        }
+      }
+    },
+    "workloads": {
+      "etl_taxi": {
+        "deadline_s": 600,
+        "fault_at_s": 45,
+        "expected_runtime_s": 120
+      }
+    },
+    "faults": [
+      "none",
+      "cluster_outage"
+    ]
+  },
+  "cluster_config": {
+    "clusters": {
+      "A": {
+        "master_url": "spark://spark-master-a:7077",
+        "ui_url": "http://spark-master-a:8080",
+        "master_container": "rmc-master-a",
+        "worker_containers": [
+          "rmc-worker-a1",
+          "rmc-worker-a2"
+        ],
+        "expected_workers": 2
+      },
+      "B": {
+        "master_url": "spark://spark-master-b:7077",
+        "ui_url": "http://spark-master-b:8080",
+        "master_container": "rmc-master-b",
+        "worker_containers": [
+          "rmc-worker-b1",
+          "rmc-worker-b2"
+        ],
+        "expected_workers": 2
+      }
+    },
+    "storage": {
+      "checkpoint_root": "s3a://checkpoints",
+      "data_root": "s3a://data",
+      "results_root": "s3a://results"
+    },
+    "paths": {
+      "events_dir": "/workspace/results/events",
+      "logs_dir": "/workspace/results/logs",
+      "decisions_file": "/workspace/results/decisions.jsonl",
+      "timeseries_file": "/workspace/results/raw/cluster_timeseries.csv"
+    },
+    "controller": {
+      "poll_interval_s": 2.0,
+      "probe_timeout_s": 1.5,
+      "health_weights": {
+        "unreachable": 0.45,
+        "workers_lost": 0.25,
+        "latency": 0.1,
+        "stall": 0.15,
+        "executor_loss": 0.05
+      },
+      "latency_ewma_alpha": 0.2,
+      "latency_z_low": 3.0,
+      "latency_z_high": 8.0,
+      "stall_limit_s": 120.0,
+      "suspect_threshold": 0.95,
+      "failed_threshold": 0.5,
+      "failed_consecutive": 3,
+      "recovered_consecutive": 5,
+      "migrate_stall_s": 10.0,
+      "naive_timeout_s": 30.0,
+      "placement": {
+        "alpha": 0.4,
+        "beta": 0.5,
+        "gamma": 0.1
+      },
+      "reliability_weights": {
+        "availability": 0.4,
+        "recovery": 0.2,
+        "success": 0.2,
+        "health": 0.2
+      },
+      "mttr_reference_s": 120.0,
+      "mtbf_prior_s": 900.0,
+      "mtbf_prior_weight": 1.0,
+      "max_retries_same_cluster": 1
+    },
+    "spark_submit": {
+      "driver_memory": "512m",
+      "executor_memory": "576m",
+      "executor_cores": 1,
+      "total_executor_cores": 4,
+      "ui_port_base": 4040
+    }
+  },
+  "started": 1791485506.8976684
+}
